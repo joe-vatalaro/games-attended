@@ -18,6 +18,13 @@ POSTSEASON_NAMES = {
     "L": "League Championship Series",
     "W": "World Series",
 }
+SPRING_TYPES = frozenset({"S"})
+OTHER_GAME_TYPES = frozenset({"E", "A"})
+GAME_TYPE_LABELS = {
+    "S": "Spring Training",
+    "E": "Exhibition",
+    "A": "All-Star Game",
+}
 
 
 class MlbError(Exception):
@@ -55,7 +62,7 @@ class Candidate:
 
     @property
     def series_label(self) -> str | None:
-        return playoff_label(
+        return game_type_label(
             self.game_type,
             series_description=self.series_description,
             series_game_number=self.series_game_number,
@@ -133,17 +140,30 @@ def playoff_label(
     series_description: str | None = None,
     series_game_number: int | None = None,
 ) -> str | None:
-    if game_type not in POSTSEASON_TYPES:
-        return None
-    series = (series_description or "").strip()
-    if series and series_game_number:
-        return f"{series} Game {series_game_number}"
-    if series:
-        return series
-    name = POSTSEASON_NAMES[game_type]
-    if series_game_number:
-        return f"{name} Game {series_game_number}"
-    return name
+    return game_type_label(
+        game_type,
+        series_description=series_description,
+        series_game_number=series_game_number,
+    )
+
+
+def game_type_label(
+    game_type: str | None,
+    *,
+    series_description: str | None = None,
+    series_game_number: int | None = None,
+) -> str | None:
+    if game_type in POSTSEASON_TYPES:
+        series = (series_description or "").strip()
+        if series and series_game_number:
+            return f"{series} Game {series_game_number}"
+        if series:
+            return series
+        name = POSTSEASON_NAMES[game_type]
+        if series_game_number:
+            return f"{name} Game {series_game_number}"
+        return name
+    return GAME_TYPE_LABELS.get(game_type or "")
 
 
 def series_fields_from_schedule(schedule: dict[str, Any], game_pk: int) -> dict[str, Any]:

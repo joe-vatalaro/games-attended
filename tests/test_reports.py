@@ -103,3 +103,45 @@ def test_report_record_parks_and_unmatched(db_conn):
     assert years[2023]["games"] == 1
     assert report["notable"][0]["is_extra_innings"] == 1
     assert len(report["unmatched"]) == 1
+    assert set(report["type_groups"]) == {"regular", "playoffs"}
+
+
+def test_report_excludes_spring_training_by_default(db_conn):
+    fenway = parse_game_details(load_fixture("feed_746946.json"))
+    _seed_confirmed(
+        db_conn,
+        fenway,
+        date="2024-06-15",
+        home="Red Sox",
+        away="Yankees",
+        home_id=111,
+        away_id=147,
+    )
+    spring = {
+        **fenway,
+        "mlb_game_pk": 88,
+        "official_date": "2024-03-12",
+        "season": 2024,
+        "game_type": "S",
+        "venue_id": 2508,
+        "venue_name": "Salt River Fields",
+        "home_score": 5,
+        "away_score": 4,
+        "winning_team_id": 111,
+    }
+    _seed_confirmed(
+        db_conn,
+        spring,
+        date="2024-03-12",
+        home="Red Sox",
+        away="Yankees",
+        home_id=111,
+        away_id=147,
+    )
+
+    default_report = build_report(db_conn)
+    assert default_report["totals"]["confirmed"] == 1
+    assert default_report["totals"]["attended"] == 2
+
+    with_spring = build_report(db_conn, type_groups=["regular", "playoffs", "spring"])
+    assert with_spring["totals"]["confirmed"] == 2

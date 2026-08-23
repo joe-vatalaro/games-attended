@@ -77,6 +77,27 @@ nav { display: flex; gap: 1rem; font-size: 0.95rem; }
 
 label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.25rem; }
 
+.game-type-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+}
+
+.game-type-filter label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.game-type-filter input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}
+
 input[type="text"], input[type="date"], textarea, select {
   width: 100%;
   font: inherit;

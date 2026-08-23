@@ -5,8 +5,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
+from tracker.mlb import OTHER_GAME_TYPES, POSTSEASON_TYPES, SPRING_TYPES
 from tracker.paths import PARKS_PATH
 from tracker.teams import team_by_id
+
+REPORT_TYPE_GROUPS = {
+    "regular": frozenset({"R"}),
+    "playoffs": POSTSEASON_TYPES,
+    "spring": SPRING_TYPES,
+    "other": OTHER_GAME_TYPES,
+}
+DEFAULT_REPORT_TYPE_GROUPS = ("regular", "playoffs")
+GROUPED_GAME_TYPES = frozenset().union(*REPORT_TYPE_GROUPS.values())
 
 
 def load_parks(path: Path | None = None) -> list[dict[str, Any]]:
@@ -14,12 +24,40 @@ def load_parks(path: Path | None = None) -> list[dict[str, Any]]:
     return json.loads(parks_path.read_text())["parks"]
 
 
-def build_report(conn, parks_path: Path | None = None) -> dict[str, Any]:
+def parse_report_type_groups(values: list[str] | None, *, explicit: bool = False) -> list[str]:
+    if not explicit and not values:
+        return list(DEFAULT_REPORT_TYPE_GROUPS)
+    return [value for value in values or [] if value in REPORT_TYPE_GROUPS]
+
+
+def allowed_game_types(type_groups: list[str] | tuple[str, ...] | None) -> set[str]:
+    groups = type_groups if type_groups is not None else DEFAULT_REPORT_TYPE_GROUPS
+    allowed: set[str] = set()
+    for group in groups:
+        allowed.update(REPORT_TYPE_GROUPS.get(group, ()))
+    return allowed
+
+
+def _matches_type_filter(game: dict[str, Any], allowed: set[str], include_other: bool) -> bool:
+    game_type = game.get("game_type") or "R"
+    if game_type in allowed:
+        return True
+    return include_other and game_type not in GROUPED_GAME_TYPES
+
+
+def build_report(
+    conn,
+    parks_path: Path | None = None,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    selected = list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS)
+    allowed = allowed_game_types(selected)
+    include_other = "other" in selected
     rows = conn.execute(
         """
         SELECT a.id, a.date, a.home_team, a.away_team, a.home_team_id, a.away_team_id,
                a.notes, a.mlb_game_pk,
-               d.official_date, d.season, d.venue_id, d.venue_name, d.home_score, d.away_score,
+               d.official_date, d.season, d.game_type, d.venue_id, d.venue_name, d.home_score, d.away_score,
                d.winning_team_id, d.attendance, d.duration_minutes, d.innings,
                d.is_walkoff, d.is_extra_innings, d.is_no_hitter
         FROM attended_games a
@@ -28,10 +66,17 @@ def build_report(conn, parks_path: Path | None = None) -> dict[str, Any]:
         """
     ).fetchall()
     games = [dict(row) for row in rows]
-    confirmed = [game for game in games if game["mlb_game_pk"] and game["home_score"] is not None]
+    confirmed = [
+        game
+        for game in games
+        if game["mlb_game_pk"]
+        and game["home_score"] is not None
+        and _matches_type_filter(game, allowed, include_other)
+    ]
     unmatched = [game for game in games if game["mlb_game_pk"] is None]
 
     return {
+        "type_groups": selected,
         "totals": {
             "attended": len(games),
             "confirmed": len(confirmed),

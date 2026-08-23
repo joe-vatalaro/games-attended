@@ -15,9 +15,9 @@ from tracker.enrich import (
     resolve_add,
     save_personal_only,
 )
-from tracker.mlb import MlbClient, MlbError, playoff_label
+from tracker.mlb import MlbClient, MlbError, game_type_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
-from tracker.reports import build_report, format_record, format_score
+from tracker.reports import build_report, format_record, format_score, parse_report_type_groups
 from tracker.teams import all_teams, team_by_id
 
 
@@ -41,7 +41,7 @@ def create_app(
             "format_record": format_record,
             "format_score": format_score,
             "team_by_id": team_by_id,
-            "playoff_label": playoff_label,
+            "game_type_label": game_type_label,
         }
 
     @app.route("/")
@@ -262,8 +262,12 @@ def create_app(
 
     @app.route("/report")
     def report():
+        selected = parse_report_type_groups(
+            request.args.getlist("type"),
+            explicit="filter" in request.args,
+        )
         conn = get_conn()
-        payload = build_report(conn)
+        payload = build_report(conn, type_groups=selected)
         conn.close()
         return render_template("report.html", report=payload)
 

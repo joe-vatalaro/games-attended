@@ -2,7 +2,7 @@
 {% block title %}{{ game.away_team }} @ {{ game.home_team }}{% endblock %}
 {% block body %}
   <h2>{{ game.away_team }} @ {{ game.home_team }}</h2>
-  {% set series = playoff_label(game.game_type, series_description=game.series_description, series_game_number=game.series_game_number) %}
+  {% set series = game_type_label(game.game_type, series_description=game.series_description, series_game_number=game.series_game_number) %}
   <p class="muted">
     {{ game.official_date or game.date }}
     {% if series %} · {{ series }}{% endif %}

@@ -53,6 +53,13 @@ def test_both_teams_with_year_lists_matchups(db_conn, tmp_path):
     assert [item.game_pk for item in result.pending.candidates] == [746946]
 
 
+def test_year_search_keeps_home_and_away(db_conn, tmp_path):
+    client = client_from_fixtures(tmp_path, "schedule_2024-06-15.json")
+    swapped = resolve_add(db_conn, "2024", "Yankees", "Red Sox", client=client)
+    assert swapped.ok
+    assert swapped.pending.candidates == []
+
+
 def test_year_alone_needs_both_teams(db_conn):
     result = resolve_add(db_conn, "2024", "Red Sox", "")
     assert not result.ok
@@ -222,6 +229,25 @@ def test_game_page_shows_world_series_label(db_conn, tmp_path):
     with app.test_client() as flask_client:
         html = flask_client.get(f"/games/{game_id}").get_data(as_text=True)
     assert "World Series Game 1" in html
+
+
+def test_game_page_shows_spring_training_label(db_conn, tmp_path):
+    details = parse_game_details(load_fixture("feed_746946.json"))
+    details["game_type"] = "S"
+    game_id = db.insert_attended_game(
+        db_conn,
+        {
+            "date": "2024-03-12",
+            "home_team": "Boston Red Sox",
+            "away_team": "New York Yankees",
+            "mlb_game_pk": details["mlb_game_pk"],
+        },
+    )
+    db.upsert_game_details(db_conn, details)
+    app = create_app(db_path=tmp_path / "games.db", secret_key="test")
+    with app.test_client() as flask_client:
+        html = flask_client.get(f"/games/{game_id}").get_data(as_text=True)
+    assert "Spring Training" in html
 
 
 def test_no_final_game_has_empty_candidates(db_conn, tmp_path):

@@ -1,4 +1,4 @@
-from tracker.mlb import parse_game_details, parse_schedule_candidates, playoff_label, series_fields_from_schedule
+from tracker.mlb import game_type_label, parse_game_details, parse_schedule_candidates, playoff_label, series_fields_from_schedule
 
 from tests.conftest import load_fixture
 
@@ -42,6 +42,8 @@ def test_playoff_label_formats_series_game():
     )
     assert playoff_label("R", series_description="Regular Season", series_game_number=3) is None
     assert playoff_label("W") == "World Series"
+    assert game_type_label("S") == "Spring Training"
+    assert game_type_label("R") is None
 
 
 def test_schedule_parses_world_series_game():

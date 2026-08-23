@@ -188,12 +188,11 @@ def resolve_add(
             opponent_id=away_id,
             season=season,
         )
-        pair = {home_id, away_id}
-        candidates = [
-            game
-            for game in parse_schedule_candidates(schedule)
-            if {game.home_team_id, game.away_team_id} == pair
-        ]
+        candidates = parse_schedule_candidates(
+            schedule,
+            home_team_id=home_id,
+            away_team_id=away_id,
+        )
 
     for candidate in candidates:
         existing = db.get_attended_by_pk(conn, candidate.game_pk)
