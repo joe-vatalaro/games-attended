@@ -1,7 +1,9 @@
 import pytest
 
 from tracker import db
-from tracker.enrich import AlreadyLoggedError, accept_candidate, reject_candidate, resolve_add, save_personal_only
+from tracker.app import create_app
+from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_game, reject_candidate, resolve_add, save_personal_only
+from tracker.mlb import MlbClient, parse_game_details
 from tests.conftest import client_from_fixtures, load_fixture
 
 
@@ -160,6 +162,66 @@ def test_delete_removes_attended_row_and_details(db_conn, tmp_path):
     assert db.get_attended_game(db_conn, game_id) is None
     assert db.get_game_details(db_conn, 746946) is None
     assert db.delete_attended_game(db_conn, game_id) is None
+
+
+def test_enrich_adds_playoff_series_from_schedule(db_conn, tmp_path):
+    feed = load_fixture("feed_746946.json")
+    feed["gameData"]["game"]["type"] = "W"
+    schedule = {
+        "dates": [
+            {
+                "games": [
+                    {
+                        "gamePk": 746946,
+                        "gameType": "W",
+                        "seriesDescription": "World Series",
+                        "seriesGameNumber": 1,
+                    }
+                ]
+            }
+        ]
+    }
+
+    def get_json(url, params=None):
+        if "/schedule" in url:
+            assert params and params.get("gamePk") == 746946
+            return schedule
+        return feed
+
+    client = MlbClient(get_json=get_json, cache_dir=tmp_path / "cache")
+    db.insert_attended_game(
+        db_conn,
+        {
+            "date": "2024-10-25",
+            "home_team": "Dodgers",
+            "away_team": "Yankees",
+            "mlb_game_pk": 746946,
+        },
+    )
+    details = enrich_game(db_conn, 746946, client=client, force=True)
+    assert details["series_description"] == "World Series"
+    assert details["series_game_number"] == 1
+
+
+def test_game_page_shows_world_series_label(db_conn, tmp_path):
+    details = parse_game_details(load_fixture("feed_746946.json"))
+    details["game_type"] = "W"
+    details["series_description"] = "World Series"
+    details["series_game_number"] = 1
+    game_id = db.insert_attended_game(
+        db_conn,
+        {
+            "date": "2024-10-25",
+            "home_team": "Los Angeles Dodgers",
+            "away_team": "New York Yankees",
+            "mlb_game_pk": details["mlb_game_pk"],
+        },
+    )
+    db.upsert_game_details(db_conn, details)
+    app = create_app(db_path=tmp_path / "games.db", secret_key="test")
+    with app.test_client() as flask_client:
+        html = flask_client.get(f"/games/{game_id}").get_data(as_text=True)
+    assert "World Series Game 1" in html
 
 
 def test_no_final_game_has_empty_candidates(db_conn, tmp_path):

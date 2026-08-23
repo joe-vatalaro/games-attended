@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.paths import DB_PATH, ensure_data_dirs
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS attended_games (
@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS game_details (
     official_date TEXT,
     season INTEGER,
     game_type TEXT,
+    series_description TEXT,
+    series_game_number INTEGER,
     venue_id INTEGER,
     venue_name TEXT,
     home_team_id INTEGER,
@@ -82,10 +84,23 @@ def connect(db_path: Path | str | None = None) -> sqlite3.Connection:
 
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     current = conn.execute("PRAGMA user_version").fetchone()[0]
-    if current < SCHEMA_VERSION:
+    if current < 1:
         conn.executescript(SCHEMA_SQL)
-        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
-        conn.commit()
+        conn.execute("PRAGMA user_version = 1")
+    if current < 2:
+        _add_column_if_missing(conn, "game_details", "series_description", "TEXT")
+        _add_column_if_missing(conn, "game_details", "series_game_number", "INTEGER")
+        conn.execute("PRAGMA user_version = 2")
+    conn.commit()
+
+
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, decl: str) -> None:
+    if column not in _table_columns(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
 
 
 def row_to_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -227,6 +242,8 @@ def upsert_game_details(conn: sqlite3.Connection, details: dict[str, Any]) -> No
         "official_date",
         "season",
         "game_type",
+        "series_description",
+        "series_game_number",
         "venue_id",
         "venue_name",
         "home_team_id",
@@ -275,7 +292,8 @@ def upsert_game_details(conn: sqlite3.Connection, details: dict[str, Any]) -> No
 def get_attended_with_details(conn: sqlite3.Connection, game_id: int) -> dict[str, Any] | None:
     row = conn.execute(
         """
-        SELECT a.*, d.official_date, d.season, d.game_type, d.venue_id, d.venue_name AS mlb_venue,
+        SELECT a.*, d.official_date, d.season, d.game_type, d.series_description, d.series_game_number,
+               d.venue_id, d.venue_name AS mlb_venue,
                d.home_score, d.away_score, d.winning_team_id, d.home_starter, d.away_starter,
                d.winning_pitcher, d.losing_pitcher, d.save_pitcher, d.attendance,
                d.duration_minutes, d.innings, d.weather_condition, d.weather_temp,

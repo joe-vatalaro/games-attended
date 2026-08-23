@@ -1,4 +1,4 @@
-from tracker.mlb import parse_game_details, parse_schedule_candidates
+from tracker.mlb import parse_game_details, parse_schedule_candidates, playoff_label, series_fields_from_schedule
 
 from tests.conftest import load_fixture
 
@@ -33,6 +33,50 @@ def test_schedule_doubleheader_returns_both_games():
     games = parse_schedule_candidates(schedule, home_team_id=121, away_team_id=143)
     assert [game.game_number for game in games] == [1, 2]
     assert {game.game_pk for game in games} == {530769, 529466}
+
+
+def test_playoff_label_formats_series_game():
+    assert playoff_label("W", series_description="World Series", series_game_number=1) == "World Series Game 1"
+    assert playoff_label("L", series_description="AL Championship Series", series_game_number=2) == (
+        "AL Championship Series Game 2"
+    )
+    assert playoff_label("R", series_description="Regular Season", series_game_number=3) is None
+    assert playoff_label("W") == "World Series"
+
+
+def test_schedule_parses_world_series_game():
+    schedule = {
+        "dates": [
+            {
+                "date": "2024-10-25",
+                "games": [
+                    {
+                        "gamePk": 775300,
+                        "officialDate": "2024-10-25",
+                        "gameType": "W",
+                        "gameNumber": 1,
+                        "doubleHeader": "N",
+                        "seriesDescription": "World Series",
+                        "seriesGameNumber": 1,
+                        "status": {"detailedState": "Final", "codedGameState": "F"},
+                        "teams": {
+                            "home": {"team": {"id": 119, "name": "Los Angeles Dodgers"}, "score": 6},
+                            "away": {"team": {"id": 147, "name": "New York Yankees"}, "score": 3},
+                        },
+                        "venue": {"name": "Dodger Stadium"},
+                        "decisions": {},
+                    }
+                ],
+            }
+        ]
+    }
+    games = parse_schedule_candidates(schedule)
+    assert games[0].series_label == "World Series Game 1"
+    assert series_fields_from_schedule(schedule, 775300) == {
+        "game_type": "W",
+        "series_description": "World Series",
+        "series_game_number": 1,
+    }
 
 
 def test_parse_feed_details():

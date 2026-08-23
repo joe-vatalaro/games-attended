@@ -11,6 +11,13 @@ from tracker.paths import CACHE_DIR, ensure_data_dirs
 
 MLB_BASE = "https://statsapi.mlb.com"
 SCHEDULE_HYDRATE = "decisions,linescore,weather,venue"
+POSTSEASON_TYPES = frozenset({"F", "D", "L", "W"})
+POSTSEASON_NAMES = {
+    "F": "Wild Card Series",
+    "D": "Division Series",
+    "L": "League Championship Series",
+    "W": "World Series",
+}
 
 
 class MlbError(Exception):
@@ -34,13 +41,25 @@ class Candidate:
     doubleheader: str
     status: str
     already_logged_id: int | None = None
+    game_type: str | None = None
+    series_description: str | None = None
+    series_game_number: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Candidate:
-        return cls(**data)
+        known = {item.name for item in cls.__dataclass_fields__.values()}
+        return cls(**{key: value for key, value in data.items() if key in known})
+
+    @property
+    def series_label(self) -> str | None:
+        return playoff_label(
+            self.game_type,
+            series_description=self.series_description,
+            series_game_number=self.series_game_number,
+        )
 
 
 def default_get_json(url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -69,11 +88,14 @@ class MlbClient:
         end_date: str | None = None,
         opponent_id: int | None = None,
         season: int | None = None,
+        game_pk: int | None = None,
     ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "sportId": 1,
             "hydrate": SCHEDULE_HYDRATE,
         }
+        if game_pk is not None:
+            params["gamePk"] = game_pk
         if date:
             params["date"] = date
         if start_date:
@@ -103,6 +125,38 @@ class MlbClient:
         ensure_data_dirs()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path(game_pk).write_text(json.dumps(payload))
+
+
+def playoff_label(
+    game_type: str | None,
+    *,
+    series_description: str | None = None,
+    series_game_number: int | None = None,
+) -> str | None:
+    if game_type not in POSTSEASON_TYPES:
+        return None
+    series = (series_description or "").strip()
+    if series and series_game_number:
+        return f"{series} Game {series_game_number}"
+    if series:
+        return series
+    name = POSTSEASON_NAMES[game_type]
+    if series_game_number:
+        return f"{name} Game {series_game_number}"
+    return name
+
+
+def series_fields_from_schedule(schedule: dict[str, Any], game_pk: int) -> dict[str, Any]:
+    for day in schedule.get("dates", []):
+        for game in day.get("games", []):
+            if int(game.get("gamePk") or 0) != game_pk:
+                continue
+            return {
+                "game_type": game.get("gameType"),
+                "series_description": (game.get("seriesDescription") or "").strip() or None,
+                "series_game_number": _maybe_int(game.get("seriesGameNumber")),
+            }
+    return {}
 
 
 def parse_schedule_candidates(
@@ -143,6 +197,9 @@ def parse_schedule_candidates(
                     game_number=int(game.get("gameNumber") or 1),
                     doubleheader=game.get("doubleHeader") or "N",
                     status=(game.get("status") or {}).get("detailedState", "Final"),
+                    game_type=game.get("gameType"),
+                    series_description=(game.get("seriesDescription") or "").strip() or None,
+                    series_game_number=_maybe_int(game.get("seriesGameNumber")),
                 )
             )
     candidates.sort(key=lambda item: (item.official_date or "", item.game_number))
@@ -194,6 +251,8 @@ def parse_game_details(feed: dict[str, Any]) -> dict[str, Any]:
         "official_date": datetime_info.get("officialDate"),
         "season": _maybe_int(game.get("season")),
         "game_type": game.get("type"),
+        "series_description": None,
+        "series_game_number": None,
         "venue_id": _maybe_int(venue.get("id")),
         "venue_name": venue.get("name"),
         "home_team_id": home_id,

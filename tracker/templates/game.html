@@ -2,7 +2,12 @@
 {% block title %}{{ game.away_team }} @ {{ game.home_team }}{% endblock %}
 {% block body %}
   <h2>{{ game.away_team }} @ {{ game.home_team }}</h2>
-  <p class="muted">{{ game.official_date or game.date }} · {{ game.mlb_venue or game.venue or "Venue unknown" }}</p>
+  {% set series = playoff_label(game.game_type, series_description=game.series_description, series_game_number=game.series_game_number) %}
+  <p class="muted">
+    {{ game.official_date or game.date }}
+    {% if series %} · {{ series }}{% endif %}
+    · {{ game.mlb_venue or game.venue or "Venue unknown" }}
+  </p>
 
   {% if game.home_score is not none %}
     <p class="score" style="font-size:1.6rem">

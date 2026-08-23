@@ -15,7 +15,7 @@ from tracker.enrich import (
     resolve_add,
     save_personal_only,
 )
-from tracker.mlb import MlbClient, MlbError
+from tracker.mlb import MlbClient, MlbError, playoff_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
 from tracker.reports import build_report, format_record, format_score
 from tracker.teams import all_teams, team_by_id
@@ -41,6 +41,7 @@ def create_app(
             "format_record": format_record,
             "format_score": format_score,
             "team_by_id": team_by_id,
+            "playoff_label": playoff_label,
         }
 
     @app.route("/")

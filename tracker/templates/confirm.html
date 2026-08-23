@@ -20,6 +20,9 @@
         <h2>Home: {{ candidate.home_team }} · Away: {{ candidate.away_team }}</h2>
         <p class="muted">
           {{ candidate.official_date }}
+          {% if candidate.series_label %}
+            · <span class="badge">{{ candidate.series_label }}</span>
+          {% endif %}
           · {{ candidate.venue_name or "Unknown venue" }}
           {% if candidate.doubleheader != "N" %}
             · <span class="badge">Doubleheader game {{ candidate.game_number }}</span>

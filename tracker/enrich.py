@@ -6,7 +6,15 @@ from datetime import date as Date
 from typing import Any
 
 from tracker import db
-from tracker.mlb import Candidate, MlbClient, MlbError, parse_game_details, parse_schedule_candidates
+from tracker.mlb import (
+    POSTSEASON_TYPES,
+    Candidate,
+    MlbClient,
+    MlbError,
+    parse_game_details,
+    parse_schedule_candidates,
+    series_fields_from_schedule,
+)
 from tracker.teams import Team, TeamResolution, resolve_team
 
 EMPTY_TEAM = TeamResolution(query="", matches=())
@@ -291,6 +299,9 @@ def enrich_game(
     client = client or MlbClient()
     feed = client.fetch_feed(game_pk, force=force)
     details = parse_game_details(feed)
+    if details.get("game_type") in POSTSEASON_TYPES:
+        schedule = client.fetch_schedule(game_pk=game_pk)
+        details.update(series_fields_from_schedule(schedule, game_pk))
     db.upsert_game_details(conn, details)
     attended = db.get_attended_by_pk(conn, game_pk)
     if attended and details.get("venue_name") and not attended.get("venue"):
