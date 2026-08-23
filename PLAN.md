@@ -12,16 +12,18 @@ This is not a product. No auth, no mobile app, no live tracking.
 
 ## 2. v1 in one sentence
 
-A local Python app: SQLite + a small web UI to add a game by date and teams, confirm or reject the MLB match, enrich automatically, and view reports. A CLI remains for batch work and re-enrich.
+A local Python app: SQLite + a small web UI to add a game by date (or year) and teams, confirm or reject the MLB match, enrich automatically, and view reports. A CLI remains for batch work and re-enrich.
 
 ## 3. Non-goals for v1
 
 - Multi-user / accounts
 - Mobile app
-- Minor league, spring training, or non-MLB games (schema will still allow them later)
+- Minor league or non-MLB games (schema still allows a later `sportId`)
 - Live / in-progress games
 - Charts, maps, photos, Statcast, structured companions
 - Google Sheets as the system of record
+
+Spring training and MLB postseason **are** in v1: they resolve like any Final game, get a label on confirm / the game page, and can be included or excluded on `/report` (default: regular season + playoffs).
 
 ---
 
@@ -53,12 +55,12 @@ Rules that keep this future-proof:
 
 - The UI and CLI are thin. All behavior lives in importable functions.
 - Store MLB IDs (`team_id`, `venue_id`, player ids when we have them), not only display names.
-- Store `game_type` even though v1 only cares about regular-season MLB.
+- Store `game_type` and series fields so playoff / spring labels and the report filter do not need another source of truth.
 - Cache the raw feed JSON so later features (home runs, walk-off play) are parsers, not new HTTP clients.
 
 ### Stack
 
-- Python 3.12+
+- Python 3.9+
 - `requests` for MLB
 - `sqlite3` in the stdlib
 - Flask for the local UI (one process, bind to localhost)
@@ -106,7 +108,9 @@ Unique constraint: one attended row per `mlb_game_pk` when `mlb_game_pk` is not 
 | `mlb_game_pk` | INTEGER PK | |
 | `official_date` | TEXT | use this, not UTC `gameDate` |
 | `season` | INTEGER | |
-| `game_type` | TEXT | `R` regular, `F`/`D`/`L`/`W` postseason, `S` spring |
+| `game_type` | TEXT | `R` regular, `F`/`D`/`L`/`W` postseason, `S` spring, `E` exhibition, `A` All-Star |
+| `series_description` | TEXT | e.g. `World Series`; from schedule, not the live feed |
+| `series_game_number` | INTEGER | series game, not doubleheader `gameNumber` |
 | `venue_id` | INTEGER | stable as parks rename |
 | `venue_name` | TEXT | |
 | `home_team_id` / `away_team_id` | INTEGER | |
@@ -151,11 +155,20 @@ Base: `https://statsapi.mlb.com` (undocumented, stable, no auth).
 ```text
 GET /api/v1/schedule?sportId=1&date=YYYY-MM-DD
     &hydrate=decisions,linescore,weather,venue
+    [&teamId=]
 ```
 
-Match on `officialDate` + home/away `team.id`. Ignore anything whose status is not Final (postponements show up on the original date).
+or, when the user typed a year and both teams:
 
-Schedule hydrate already returns gamePk, scores, winner, WP/LP/SV, linescore, weather, venue, `doubleHeader`, `gameNumber`.
+```text
+GET /api/v1/schedule?sportId=1&startDate=YYYY-01-01&endDate=YYYY-12-31
+    &teamId=&opponentId=&season=YYYY
+    &hydrate=decisions,linescore,weather,venue
+```
+
+Match Final games only. Date + both teams, or year + both teams, keeps the home/away orientation the user typed. Date + one team matches that club on either side. Do not silently include the swapped home/away series.
+
+Schedule hydrate already returns gamePk, scores, winner, WP/LP/SV, linescore, weather, venue, `doubleHeader`, `gameNumber`, `gameType`, `seriesDescription`, `seriesGameNumber`.
 
 **Fetch full details** (after accept)
 
@@ -164,6 +177,8 @@ GET /api/v1.1/game/{gamePk}/feed/live
 ```
 
 This is the object the schedule `link` field already points at. It adds attendance, duration, actual starters, and play-by-play. Cache the raw JSON at `data/cache/{gamePk}.json`.
+
+The live feed does **not** include series labels. After a postseason accept (or Refresh), also fetch `schedule?gamePk=` and store `series_description` / `series_game_number`. Spring training is labeled from `game_type=S` alone.
 
 `--force` / a “Refresh from MLB” button re-fetches and overwrites `game_details`.
 
@@ -182,11 +197,13 @@ Pages:
 | Route | Purpose |
 |---|---|
 | `/` | Dashboard: recent games, unenriched / unmatched count, link to add and reports |
-| `/add` | Form: date, home team, away team, optional notes and seats |
+| `/add` | Form: date (full day or year), home team, away team, optional notes and seats |
 | `/confirm` | Candidate cards: accept or reject each MLB match |
 | `/games` | List of attended games |
-| `/games/<id>` | One game: personal fields + official details |
-| `/report` | All v1 reports on one page |
+| `/games/<id>` | One game: personal fields + official details; notes edit; delete; refresh |
+| `/games/<id>/notes` | POST notes only |
+| `/games/<id>/delete` | POST delete attended row + its `game_details` |
+| `/report` | All v1 reports; `?type=` filter for regular / playoffs / spring / other |
 
 No login. Personal machine only.
 
@@ -195,11 +212,14 @@ No login. Personal machine only.
 This is the main way games enter the system.
 
 ```text
-1. User submits date + home + away (+ optional notes/seats).
+1. User submits a date or year, plus teams (+ optional notes/seats).
+      Valid: full date + at least one team, or both teams + a year
+      (type 2024 in the date field, or pick a day from the calendar).
 2. App resolves team names via aliases.
       - 0 matches → stay on form, “unknown team, try BOS or Red Sox”
       - 2+ for one side → stay on form, pick from the colliding options
-3. App queries MLB schedule for that official date + team pair.
+3. App queries MLB schedule (that day, or that season’s meetings
+   in the typed home/away order).
 4. Branch:
 
    A. No Final game
@@ -208,10 +228,11 @@ This is the main way games enter the system.
       Personal-only rows appear on the dashboard as “unmatched” so they
       can be confirmed later if the user had the date wrong.
 
-   B. One or more Final games (doubleheader → two cards)
+   B. One or more Final games (doubleheader or a season of meetings)
       For each candidate show:
-        away @ home, official date, venue, final score,
-        WP / LP, doubleheader game number if any
+        home / away, official date, venue, final score,
+        WP / LP, doubleheader game number if any,
+        playoff series label or “Spring Training” when it applies
       And one of:
         - “Already in your log” (this game_pk is on an attended_games row)
         - Accept / Reject
@@ -247,6 +268,8 @@ Same library as the UI.
 
 ```text
 python -m tracker add --date 2024-06-15 --home "Red Sox" --away "Yankees"
+python -m tracker add --date 2024 --home "Yankees" --away "Red Sox"
+python -m tracker delete --id 12
 python -m tracker enrich [--force] [--id 12]
 python -m tracker report [--html report.html]
 python -m tracker list
@@ -259,6 +282,8 @@ Non-interactive `add` that finds exactly one Final game may auto-accept and prin
 ## 8. Reports (v1)
 
 All from `attended_games JOIN game_details`. Unmatched personal-only rows are excluded from W-L / attendance / duration and listed separately as “not yet confirmed.”
+
+`/report` has an Include filter: regular season, playoffs, spring training, other. Default is regular + playoffs. CLI `report` uses that same default. Unmatched rows always list; they have no `game_type`.
 
 | Report | Definition |
 |---|---|
@@ -315,16 +340,16 @@ report.html
 
 ---
 
-## 10. Build order
+## 10. v1 status
 
-1. Package + SQLite schema + `add`/`list` library functions (no UI yet).
-2. Team aliases + collision handling.
-3. MLB resolve + feed parse + cache, covered by fixture tests (include a doubleheader, a postponement, a night-game `officialDate`).
-4. Confirm logic: accept, reject, already-exists, personal-only.
-5. Flask UI: `/add` → `/confirm` → `/games/<id>`.
-6. Enrich skip/`--force`, dashboard unmatched list.
-7. `/report` + CLI `report`.
-8. Manual pass: add a real game, reject a wrong doubleheader game, try a rainout date, confirm a duplicate is blocked.
+The original build order (schema → aliases → resolve/parse → confirm → Flask → enrich skip → report → CLI) is done. Later add-flow and report work that landed in v1:
+
+- Partial lookup: date + one team, or both teams + a year in the date field.
+- Year search keeps the typed home/away (no swapped-park series).
+- Delete a logged game (UI + `python -m tracker delete --id`).
+- Edit notes on the game page (`?edit=notes`); seats stay add-time / personal-only for now.
+- Playoff series labels and Spring Training labels on confirm + game page.
+- Report game-type filter, default regular + playoffs.
 
 Do not start with `game_events`, charts, or a public bind address.
 
@@ -332,18 +357,18 @@ Do not start with `game_events`, charts, or a public bind address.
 
 ## 11. Definition of done (v1)
 
-- User can open the local UI, enter a date and two teams, and see MLB candidate(s) if they exist.
+- User can open the local UI, enter a date (or year) and teams, and see MLB candidate(s) if they exist.
 - Accept saves the attendance row, fills score / pitchers / attendance / duration / weather / venue, and shows the game page.
 - Reject does not attach that `game_pk`. Already-logged games cannot be accepted again.
 - No completed MLB match can be saved as personal-only and later confirmed.
-- `python -m tracker report` and `/report` show: W-L, parks visited + remaining, longest/shortest, attendance extremes, games by year, notable flags.
+- `python -m tracker report` and `/report` show: W-L, parks visited + remaining, longest/shortest, attendance extremes, games by year, notable flags. Report defaults to regular season + playoffs.
 - Re-running enrich does not overwrite unless forced.
 
 ---
 
 ## 12. Later features — how they attach
 
-Nothing below is built in v1. Each item names the hook that already exists so we do not rewrite the core.
+Each item names the hook that already exists so we do not rewrite the core. Notes edit, playoff/spring labels, and the report type filter are already in v1; they are called out where they used to be “later.”
 
 ### 12.1 Game events (home runs, final play, walk-off description)
 
@@ -358,10 +383,9 @@ Nothing below is built in v1. Each item names the hook that already exists so we
 - New table or columns on `game_events` (`launch_speed`, `hit_distance`, etc.).
 - Do not pull this into the v1 dependency list.
 
-### 12.3 Spring training, playoffs filter, MiLB
+### 12.3 MiLB (and other sports)
 
-- `game_details.game_type` is already stored. Playoffs work in v1 if the user accepts a postseason candidate (`sportId=1` still applies).
-- Spring: allow `gameType=S` (or drop the Final-only regular-season assumption) in the resolver; same confirm UI.
+- Playoffs and spring training are already in v1 (labels + report filter).
 - MiLB: pass a different `sportId`, keep the same `game_pk` join. Parks list becomes “MLB parks” vs “all venues I’ve visited.”
 
 ### 12.4 Rooting interest / “my team when I was there”
@@ -375,9 +399,10 @@ Nothing below is built in v1. Each item names the hook that already exists so we
 - Notes stay freeform. UI gets a multi-select on `/add` and `/games/<id>/edit`.
 - Report: “games with X.”
 
-### 12.6 Edit seats / notes after the fact
+### 12.6 Edit seats / more personal fields after the fact
 
-- `/games/<id>/edit` writes only `attended_games` personal columns. Never let the form overwrite `game_details`.
+- Notes edit is already on `/games/<id>?edit=notes` and writes only `attended_games.notes`.
+- Seats / venue still need a similar personal-only edit. Never let the form overwrite `game_details`.
 
 ### 12.7 Photos / ticket stubs
 
@@ -411,22 +436,24 @@ Nothing below is built in v1. Each item names the hook that already exists so we
 ## 13. Decisions locked for v1
 
 1. Personal rows and MLB facts are separate tables joined on `mlb_game_pk`.
-2. Primary input is the local UI: date + teams → accept / reject.
+2. Primary input is the local UI: date or year + teams → accept / reject. Home/away order is kept on year search.
 3. Already-logged `game_pk` cannot be accepted again.
 4. Reports use home-team W-L plus per-team seen breakdown.
 5. Park progress uses `venue_id` against a 30-park reference file.
 6. One HTTP client (`mlb.py`), one enrich path, raw JSON cached.
 7. Flask on localhost; CLI for batch and report snapshots.
 8. `game_events` and pandas wait.
+9. Report default is regular season + playoffs; spring / other are opt-in.
 
-## 14. Open until implement-time (small)
+## 14. Settled in implementation
 
-- Flask port (default 5000) and whether `serve` auto-opens a browser.
-- Exact alias list for the 30 clubs (include common nicknames; keep `Chicago` / `Sox` / `LA` ambiguous on purpose).
-- Whether personal-only save is on the no-match screen in the first UI slice, or added right after Accept/Reject works.
+- Flask defaults to `127.0.0.1:5000`. `serve --no-browser` skips opening a tab.
+- Team aliases live in `data/team_aliases.json`. `Chicago` / `Sox` / `LA` / `NY` stay ambiguous.
+- Personal-only save is on the no-match confirm screen and needs a **full date** plus both teams (a year is not enough).
+- Schema version is `2` (`series_description`, `series_game_number` added to existing DBs on connect).
 
 ---
 
-## 15. Suggested first implementation slice
+## 15. Suggested next slice
 
-Schema + aliases + resolve/parse tests + `/add` → `/confirm` → save one accepted game. Reports and CLI can follow immediately after a real game is in the database.
+Pick from §12: seats edit, rooting-for, companions, CSV import, or `game_events`. Do not reopen the add/confirm path unless a real lookup is wrong.
