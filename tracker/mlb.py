@@ -61,14 +61,31 @@ class MlbClient:
         self.get_json = get_json or default_get_json
         self.cache_dir = Path(cache_dir) if cache_dir else CACHE_DIR
 
-    def fetch_schedule(self, date: str, team_id: int | None = None) -> dict[str, Any]:
+    def fetch_schedule(
+        self,
+        date: str | None = None,
+        team_id: int | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        opponent_id: int | None = None,
+        season: int | None = None,
+    ) -> dict[str, Any]:
         params: dict[str, Any] = {
             "sportId": 1,
-            "date": date,
             "hydrate": SCHEDULE_HYDRATE,
         }
+        if date:
+            params["date"] = date
+        if start_date:
+            params["startDate"] = start_date
+        if end_date:
+            params["endDate"] = end_date
         if team_id is not None:
             params["teamId"] = team_id
+        if opponent_id is not None:
+            params["opponentId"] = opponent_id
+        if season is not None:
+            params["season"] = season
         return self.get_json(f"{MLB_BASE}/api/v1/schedule", params=params)
 
     def fetch_feed(self, game_pk: int, force: bool = False) -> dict[str, Any]:
@@ -90,8 +107,9 @@ class MlbClient:
 
 def parse_schedule_candidates(
     schedule: dict[str, Any],
-    home_team_id: int,
-    away_team_id: int,
+    home_team_id: int | None = None,
+    away_team_id: int | None = None,
+    either_team_id: int | None = None,
 ) -> list[Candidate]:
     candidates: list[Candidate] = []
     for day in schedule.get("dates", []):
@@ -101,7 +119,11 @@ def parse_schedule_candidates(
             teams = game.get("teams", {})
             home = teams.get("home", {}).get("team", {})
             away = teams.get("away", {}).get("team", {})
-            if home.get("id") != home_team_id or away.get("id") != away_team_id:
+            if home_team_id is not None and home.get("id") != home_team_id:
+                continue
+            if away_team_id is not None and away.get("id") != away_team_id:
+                continue
+            if either_team_id is not None and either_team_id not in {home.get("id"), away.get("id")}:
                 continue
             decisions = game.get("decisions") or {}
             venue = game.get("venue") or {}
@@ -123,7 +145,7 @@ def parse_schedule_candidates(
                     status=(game.get("status") or {}).get("detailedState", "Final"),
                 )
             )
-    candidates.sort(key=lambda item: item.game_number)
+    candidates.sort(key=lambda item: (item.official_date or "", item.game_number))
     return candidates
 
 

@@ -18,6 +18,16 @@ def test_schedule_finds_final_and_skips_postponed():
     assert rained_out == []
 
 
+def test_schedule_matches_one_team_on_either_side():
+    schedule = load_fixture("schedule_2024-06-15.json")
+    as_home = parse_schedule_candidates(schedule, home_team_id=111)
+    as_away = parse_schedule_candidates(schedule, away_team_id=147)
+    either = parse_schedule_candidates(schedule, either_team_id=147)
+    assert [game.game_pk for game in as_home] == [746946]
+    assert [game.game_pk for game in as_away] == [746946]
+    assert [game.game_pk for game in either] == [746946]
+
+
 def test_schedule_doubleheader_returns_both_games():
     schedule = load_fixture("schedule_2018-07-09_phi.json")
     games = parse_schedule_candidates(schedule, home_team_id=121, away_team_id=143)

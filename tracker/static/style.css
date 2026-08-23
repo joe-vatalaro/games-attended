@@ -87,6 +87,52 @@ input[type="text"], input[type="date"], textarea, select {
   margin-bottom: 0.85rem;
 }
 
+.date-with-picker {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #c4b8a8;
+  border-radius: 6px;
+  background: #fff;
+  margin-bottom: 0.85rem;
+  position: relative;
+}
+
+.date-with-picker #date {
+  border: 0;
+  margin: 0;
+  border-radius: 0;
+  flex: 1;
+  min-width: 0;
+  padding-right: 2.7rem;
+}
+
+.date-calendar-icon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 2.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  border-left: 1px solid var(--line);
+  pointer-events: none;
+}
+
+.date-with-picker #date-picker {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 2.6rem;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0.01;
+  cursor: pointer;
+}
+
 textarea { min-height: 4.5rem; }
 
 .row-2, .row-3 {
@@ -132,6 +178,8 @@ th {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+
+.notes-text { white-space: pre-wrap; margin: 0 0 0.75rem; }
 
 .muted { color: var(--muted); }
 .score { font-variant-numeric: tabular-nums; }

@@ -17,9 +17,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
 
     add = sub.add_parser("add", help="Add a game from the command line.")
-    add.add_argument("--date", required=True)
-    add.add_argument("--home", required=True)
-    add.add_argument("--away", required=True)
+    add.add_argument("--date", default="", help="Full date like 2024-06-15, or a year like 2024.")
+    add.add_argument("--home", default="")
+    add.add_argument("--away", default="")
     add.add_argument("--notes", default="")
     add.add_argument("--section", default="")
     add.add_argument("--row", default="")
@@ -80,9 +80,11 @@ def _cmd_add(conn, args) -> int:
         client=MlbClient(),
     )
     if not result.ok:
-        if not result.home.unique:
+        if result.error:
+            print(result.error)
+        if args.home and not result.home.unique:
             print(f"Home team “{args.home}” is unknown or ambiguous: {[t.name for t in result.home.matches]}")
-        if not result.away.unique:
+        if args.away and not result.away.unique:
             print(f"Away team “{args.away}” is unknown or ambiguous: {[t.name for t in result.away.matches]}")
         return 2
     pending = result.pending
@@ -92,10 +94,10 @@ def _cmd_add(conn, args) -> int:
         if pending.candidates:
             print("That official game is already in your log. Use the UI if you need to inspect it.")
             return 3
-        print("No completed MLB game for that date and those teams. Use the UI to save personal-only.")
+        print("No completed MLB game for that lookup. Use the UI to save personal-only.")
         return 4
     if len(open_candidates) > 1 and not args.game_number:
-        print("Doubleheader or multiple matches. Re-run with --game-number or use the UI.")
+        print("Multiple matchups. Re-run with --date or --game-number, or pick one in the UI.")
         for candidate in open_candidates:
             print(
                 f"  game {candidate.game_number}: {candidate.away_team} {candidate.away_score} "

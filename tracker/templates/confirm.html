@@ -3,14 +3,21 @@
 {% block body %}
   <h2>Confirm the game</h2>
   <p>
-    You entered <strong>{{ pending.away_team }} @ {{ pending.home_team }}</strong>
-    on <strong>{{ pending.date }}</strong>.
+    You entered <strong>home: {{ pending.home_team or "not specified" }}</strong> and
+    <strong>away: {{ pending.away_team or "not specified" }}</strong>
+    {% if pending.year %}
+      in <strong>{{ pending.year }}</strong>. Pick the matchup you attended.
+    {% elif pending.date %}
+      on <strong>{{ pending.date }}</strong>.
+    {% else %}
+      on <strong>date not specified</strong>.
+    {% endif %}
   </p>
 
   {% if pending.candidates %}
     {% for candidate in pending.candidates %}
       <article class="card candidate">
-        <h2>{{ candidate.away_team }} @ {{ candidate.home_team }}</h2>
+        <h2>Home: {{ candidate.home_team }} · Away: {{ candidate.away_team }}</h2>
         <p class="muted">
           {{ candidate.official_date }}
           · {{ candidate.venue_name or "Unknown venue" }}
@@ -57,13 +64,15 @@
     {% endfor %}
   {% else %}
     <div class="card">
-      <p>No completed MLB game for that date and those teams.</p>
-      <p class="muted">If the date is wrong, go back and edit. If you still want the memory logged, save a personal-only row and confirm it later.</p>
+      <p>No completed MLB game matched what you entered.</p>
+      <p class="muted">If a field is wrong, go back and edit. Personal-only save needs a date and both teams.</p>
       <div class="actions">
         <a class="btn secondary" href="{{ url_for('add_game', date=pending.date, home_team=pending.home_team, away_team=pending.away_team, notes=pending.notes, venue=pending.venue, seat_section=pending.seat_section, seat_row=pending.seat_row, seat_seat=pending.seat_seat) }}">Edit details</a>
-        <form method="post" action="{{ url_for('confirm_personal') }}">
-          <button type="submit">Save personal-only</button>
-        </form>
+        {% if pending.date and not pending.year and pending.home_team and pending.away_team %}
+          <form method="post" action="{{ url_for('confirm_personal') }}">
+            <button type="submit">Save personal-only</button>
+          </form>
+        {% endif %}
       </div>
     </div>
   {% endif %}

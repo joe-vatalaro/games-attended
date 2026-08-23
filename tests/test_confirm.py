@@ -22,6 +22,47 @@ def test_accept_saves_and_enriches(db_conn, tmp_path):
     assert (tmp_path / "cache" / "746946.json").exists()
 
 
+def test_date_and_one_team_finds_the_game(db_conn, tmp_path):
+    client = client_from_fixtures(tmp_path, "schedule_2024-06-15.json", {746946: "feed_746946.json"})
+    by_home = resolve_add(db_conn, "2024-06-15", "Red Sox", "", client=client)
+    by_away = resolve_add(db_conn, "2024-06-15", "", "Yankees", client=client)
+    assert [item.game_pk for item in by_home.pending.candidates] == [746946]
+    assert [item.game_pk for item in by_away.pending.candidates] == [746946]
+
+    game_id = accept_candidate(db_conn, by_away.pending, 746946, client=client)
+    row = db.get_attended_game(db_conn, game_id)
+    assert row["home_team"] == "Boston Red Sox"
+    assert row["away_team"] == "New York Yankees"
+    assert row["date"] == "2024-06-15"
+
+
+def test_both_teams_need_a_year(db_conn):
+    result = resolve_add(db_conn, "", "Red Sox", "Yankees")
+    assert not result.ok
+    assert "year" in (result.error or "").lower()
+
+
+def test_both_teams_with_year_lists_matchups(db_conn, tmp_path):
+    client = client_from_fixtures(tmp_path, "schedule_2024-06-15.json")
+    result = resolve_add(db_conn, "2024", "Red Sox", "Yankees", client=client)
+    assert result.ok
+    assert result.pending.year == 2024
+    assert result.pending.date == "2024"
+    assert [item.game_pk for item in result.pending.candidates] == [746946]
+
+
+def test_year_alone_needs_both_teams(db_conn):
+    result = resolve_add(db_conn, "2024", "Red Sox", "")
+    assert not result.ok
+    assert "both teams" in (result.error or "").lower()
+
+
+def test_one_field_is_not_enough(db_conn):
+    result = resolve_add(db_conn, "2024-06-15", "", "")
+    assert not result.ok
+    assert result.error
+
+
 def test_reject_removes_candidate_and_does_not_write(db_conn, tmp_path):
     client = client_from_fixtures(tmp_path, "schedule_2018-07-09_phi.json")
     result = resolve_add(db_conn, "2018-07-09", "Mets", "Phillies", client=client)
@@ -90,6 +131,24 @@ def test_enrich_skips_unless_forced(db_conn, tmp_path):
     assert calls["feed"] == 1
     enrich_game(db_conn, 746946, client=client, force=True)
     assert calls["feed"] == 2
+
+
+def test_update_notes(db_conn):
+    game_id = db.insert_attended_game(
+        db_conn,
+        {
+            "date": "2024-06-15",
+            "home_team": "Red Sox",
+            "away_team": "Yankees",
+            "home_team_id": 111,
+            "away_team_id": 147,
+            "notes": None,
+        },
+    )
+    db.update_attended_game(db_conn, game_id, {"notes": "with Dad"})
+    assert db.get_attended_game(db_conn, game_id)["notes"] == "with Dad"
+    db.update_attended_game(db_conn, game_id, {"notes": None})
+    assert db.get_attended_game(db_conn, game_id)["notes"] is None
 
 
 def test_delete_removes_attended_row_and_details(db_conn, tmp_path):

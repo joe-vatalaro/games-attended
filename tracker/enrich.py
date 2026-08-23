@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
+from datetime import date as Date
 from typing import Any
 
 from tracker import db
 from tracker.mlb import Candidate, MlbClient, MlbError, parse_game_details, parse_schedule_candidates
 from tracker.teams import Team, TeamResolution, resolve_team
+
+EMPTY_TEAM = TeamResolution(query="", matches=())
+MIN_SEASON = 1876
+FULL_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+YEAR_ONLY_RE = re.compile(r"^\d{4}$")
 
 
 class AlreadyLoggedError(Exception):
@@ -24,16 +31,17 @@ class AmbiguousAddError(Exception):
 
 @dataclass
 class PendingAdd:
-    date: str
-    home_team: str
-    away_team: str
-    home_team_id: int
-    away_team_id: int
+    date: str = ""
+    home_team: str = ""
+    away_team: str = ""
+    home_team_id: int | None = None
+    away_team_id: int | None = None
     notes: str = ""
     venue: str = ""
     seat_section: str = ""
     seat_row: str = ""
     seat_seat: str = ""
+    year: int | None = None
     candidates: list[Candidate] = field(default_factory=list)
     attended_game_id: int | None = None
 
@@ -44,7 +52,8 @@ class PendingAdd:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PendingAdd:
-        payload = dict(data)
+        known = {item.name for item in cls.__dataclass_fields__.values()}
+        payload = {key: value for key, value in data.items() if key in known}
         payload["candidates"] = [Candidate.from_dict(item) for item in payload.get("candidates") or []]
         return cls(**payload)
 
@@ -54,10 +63,42 @@ class ResolveResult:
     pending: PendingAdd | None
     home: TeamResolution
     away: TeamResolution
+    error: str | None = None
 
     @property
     def ok(self) -> bool:
         return self.pending is not None
+
+
+def parse_year(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        year = int(value)
+    except (TypeError, ValueError):
+        return None
+    max_year = Date.today().year + 1
+    if year < MIN_SEASON or year > max_year:
+        return None
+    return year
+
+
+def parse_date_input(value: Any) -> tuple[str | None, int | None, str | None]:
+    raw = str(value).strip() if value is not None else ""
+    if not raw:
+        return None, None, None
+    if FULL_DATE_RE.match(raw):
+        try:
+            Date.fromisoformat(raw)
+        except ValueError:
+            return None, None, "Date must look like 2024-06-15."
+        return raw, None, None
+    if YEAR_ONLY_RE.match(raw):
+        season = parse_year(raw)
+        if season is None:
+            return None, None, "Year must be a season like 2024."
+        return None, season, None
+    return None, None, "Use a full date like 2024-06-15, or a year like 2024."
 
 
 def resolve_add(
@@ -74,15 +115,78 @@ def resolve_add(
     attended_game_id: int | None = None,
     client: MlbClient | None = None,
 ) -> ResolveResult:
-    home = resolve_team(home_team)
-    away = resolve_team(away_team)
-    if not home.unique or not away.unique:
+    date = (date or "").strip()
+    home_team = (home_team or "").strip()
+    away_team = (away_team or "").strip()
+    full_date, season, date_error = parse_date_input(date)
+    has_home = bool(home_team)
+    has_away = bool(away_team)
+    home = resolve_team(home_team) if has_home else EMPTY_TEAM
+    away = resolve_team(away_team) if has_away else EMPTY_TEAM
+
+    if date_error:
+        return ResolveResult(pending=None, home=home, away=away, error=date_error)
+    if full_date:
+        if not has_home and not has_away:
+            return ResolveResult(
+                pending=None,
+                home=home,
+                away=away,
+                error="Add a home team or away team to go with that date.",
+            )
+    elif season:
+        if not has_home or not has_away:
+            return ResolveResult(
+                pending=None,
+                home=home,
+                away=away,
+                error="A year needs both teams. Use a full date to search one team.",
+            )
+    elif has_home and has_away:
+        return ResolveResult(
+            pending=None,
+            home=home,
+            away=away,
+            error="Add a year (or a full date) to list that season’s matchups.",
+        )
+    else:
+        return ResolveResult(
+            pending=None,
+            home=home,
+            away=away,
+            error="Enter a date plus a team, or both teams plus a year.",
+        )
+    if has_home and not home.unique:
+        return ResolveResult(pending=None, home=home, away=away)
+    if has_away and not away.unique:
         return ResolveResult(pending=None, home=home, away=away)
 
-    assert home.team and away.team
     client = client or MlbClient()
-    schedule = client.fetch_schedule(date, team_id=home.team.id)
-    candidates = parse_schedule_candidates(schedule, home.team.id, away.team.id)
+    home_id = home.team.id if home.team else None
+    away_id = away.team.id if away.team else None
+
+    if full_date and has_home and has_away:
+        schedule = client.fetch_schedule(date=full_date, team_id=home_id)
+        candidates = parse_schedule_candidates(schedule, home_team_id=home_id, away_team_id=away_id)
+    elif full_date:
+        team_id = home_id if has_home else away_id
+        schedule = client.fetch_schedule(date=full_date, team_id=team_id)
+        candidates = parse_schedule_candidates(schedule, either_team_id=team_id)
+    else:
+        schedule = client.fetch_schedule(
+            start_date=f"{season}-01-01",
+            end_date=f"{season}-12-31",
+            team_id=home_id,
+            opponent_id=away_id,
+            season=season,
+        )
+        pair = {home_id, away_id}
+        candidates = [
+            game
+            for game in parse_schedule_candidates(schedule)
+            if {game.home_team_id, game.away_team_id} == pair
+        ]
+
     for candidate in candidates:
         existing = db.get_attended_by_pk(conn, candidate.game_pk)
         if existing:
@@ -92,27 +196,29 @@ def resolve_add(
         date=date,
         home_team=home_team,
         away_team=away_team,
-        home_team_id=home.team.id,
-        away_team_id=away.team.id,
+        home_team_id=home_id,
+        away_team_id=away_id,
         notes=notes,
         venue=venue,
         seat_section=seat_section,
         seat_row=seat_row,
         seat_seat=seat_seat,
+        year=season,
         candidates=candidates,
         attended_game_id=attended_game_id,
     )
     return ResolveResult(pending=pending, home=home, away=away)
 
 
-def personal_fields(pending: PendingAdd) -> dict[str, Any]:
+def personal_fields(pending: PendingAdd, candidate: Candidate | None = None) -> dict[str, Any]:
+    full_date, _, _ = parse_date_input(pending.date)
     return {
-        "date": pending.date,
-        "home_team": pending.home_team,
-        "away_team": pending.away_team,
-        "home_team_id": pending.home_team_id,
-        "away_team_id": pending.away_team_id,
-        "venue": pending.venue or None,
+        "date": full_date or (candidate.official_date if candidate else ""),
+        "home_team": pending.home_team or (candidate.home_team if candidate else ""),
+        "away_team": pending.away_team or (candidate.away_team if candidate else ""),
+        "home_team_id": pending.home_team_id or (candidate.home_team_id if candidate else None),
+        "away_team_id": pending.away_team_id or (candidate.away_team_id if candidate else None),
+        "venue": pending.venue or (candidate.venue_name if candidate else None) or None,
         "seat_section": pending.seat_section or None,
         "seat_row": pending.seat_row or None,
         "seat_seat": pending.seat_seat or None,
@@ -139,10 +245,13 @@ def accept_candidate(
     if candidate.already_logged_id and candidate.already_logged_id != pending.attended_game_id:
         raise AlreadyLoggedError(game_pk, candidate.already_logged_id)
 
-    fields = personal_fields(pending)
+    fields = personal_fields(pending, candidate)
     fields["mlb_game_pk"] = game_pk
-    if candidate.venue_name and not fields["venue"]:
-        fields["venue"] = candidate.venue_name
+    fields["date"] = candidate.official_date or fields["date"]
+    fields["home_team"] = candidate.home_team
+    fields["away_team"] = candidate.away_team
+    fields["home_team_id"] = candidate.home_team_id
+    fields["away_team_id"] = candidate.away_team_id
 
     if pending.attended_game_id:
         db.update_attended_game(conn, pending.attended_game_id, fields)

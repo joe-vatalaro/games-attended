@@ -2,30 +2,39 @@
 {% block title %}Add a game{% endblock %}
 {% block body %}
   <h2>Add a game</h2>
-  <p class="muted">Date and teams are enough. You will confirm the official MLB game next.</p>
+  <p class="muted">Pick a date plus at least one team, or type a year with both teams to list that season’s matchups.</p>
   <form method="post" class="card" id="add-form">
     <label for="date">Date</label>
-    <input id="date" name="date" type="date" required value="{{ form.date }}">
+    <div class="date-with-picker">
+      <input id="date" name="date" type="text" autocomplete="off" value="{{ form.date }}" placeholder="2024-06-15 or 2024" pattern="\d{4}(-\d{2}-\d{2})?">
+      <span class="date-calendar-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <rect x="3" y="4" width="18" height="18" rx="2"></rect>
+          <path d="M3 10h18M8 2v4M16 2v4"></path>
+        </svg>
+      </span>
+      <input id="date-picker" type="date" aria-label="Choose date from calendar">
+    </div>
 
     <div class="row-2">
       <div>
-        <label for="away_team">Away team</label>
-        <input id="away_team" name="away_team" type="text" required list="team-list" value="{{ form.away_team }}" placeholder="Yankees or NYY">
-        {% if away_choices %}
+        <label for="home_team">Home team</label>
+        <input id="home_team" name="home_team" type="text" list="team-list" value="{{ form.home_team }}" placeholder="Yankees">
+        {% if home_choices %}
           <div class="choices">
-            {% for team in away_choices %}
-              <button type="button" data-target="away_team" data-value="{{ team.abbreviation }}">{{ team.abbreviation }} — {{ team.name }}</button>
+            {% for team in home_choices %}
+              <button type="button" data-target="home_team" data-value="{{ team.name }}">{{ team.name }}</button>
             {% endfor %}
           </div>
         {% endif %}
       </div>
       <div>
-        <label for="home_team">Home team</label>
-        <input id="home_team" name="home_team" type="text" required list="team-list" value="{{ form.home_team }}" placeholder="Red Sox or BOS">
-        {% if home_choices %}
+        <label for="away_team">Away team</label>
+        <input id="away_team" name="away_team" type="text" list="team-list" value="{{ form.away_team }}" placeholder="Braves">
+        {% if away_choices %}
           <div class="choices">
-            {% for team in home_choices %}
-              <button type="button" data-target="home_team" data-value="{{ team.abbreviation }}">{{ team.abbreviation }} — {{ team.name }}</button>
+            {% for team in away_choices %}
+              <button type="button" data-target="away_team" data-value="{{ team.name }}">{{ team.name }}</button>
             {% endfor %}
           </div>
         {% endif %}
@@ -34,7 +43,6 @@
 
     <datalist id="team-list">
       {% for team in teams %}
-        <option value="{{ team.abbreviation }}">{{ team.name }}</option>
         <option value="{{ team.name }}"></option>
       {% endfor %}
     </datalist>
@@ -71,6 +79,46 @@
       button.addEventListener("click", () => {
         document.getElementById(button.dataset.target).value = button.dataset.value;
       });
+    });
+    const form = document.getElementById("add-form");
+    const dateField = document.getElementById("date");
+    const datePicker = document.getElementById("date-picker");
+
+    const syncPickerFromText = () => {
+      const value = dateField.value.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        datePicker.value = value;
+      } else if (/^\d{4}$/.test(value)) {
+        datePicker.value = `${value}-01-01`;
+      }
+    };
+
+    syncPickerFromText();
+    dateField.addEventListener("input", () => {
+      dateField.setCustomValidity("");
+      syncPickerFromText();
+    });
+    datePicker.addEventListener("pointerdown", () => {
+      try {
+        datePicker.showPicker();
+      } catch (err) {
+        /* Native click still opens the calendar in most browsers. */
+      }
+    });
+    datePicker.addEventListener("change", () => {
+      if (datePicker.value) {
+        dateField.value = datePicker.value;
+        dateField.setCustomValidity("");
+      }
+    });
+    form.addEventListener("submit", () => {
+      const date = dateField.value.trim();
+      const home = document.getElementById("home_team").value.trim();
+      const away = document.getElementById("away_team").value.trim();
+      dateField.setCustomValidity("");
+      if (!date && home && away) {
+        dateField.setCustomValidity("Add a year or full date to list that season’s matchups.");
+      }
     });
   </script>
 {% endblock %}

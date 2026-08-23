@@ -10,6 +10,7 @@ from tracker.enrich import (
     AlreadyLoggedError,
     PendingAdd,
     accept_candidate,
+    parse_date_input,
     reject_candidate,
     resolve_add,
     save_personal_only,
@@ -28,6 +29,7 @@ def create_app(
     app = Flask(__name__)
     app.secret_key = secret_key or _load_secret_key()
     app.config["DB_PATH"] = str(db_path or DB_PATH)
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
     mlb_client = client or MlbClient()
 
     def get_conn():
@@ -80,13 +82,15 @@ def create_app(
 
         if not result.ok:
             messages = []
-            if not result.home.matches:
+            if result.error:
+                messages.append(result.error)
+            if form["home_team"] and not result.home.matches:
                 messages.append(f"Unknown home team “{form['home_team']}”. Try BOS or Red Sox.")
-            elif not result.home.unique:
+            elif form["home_team"] and not result.home.unique:
                 messages.append("Home team is ambiguous — pick one of the matches.")
-            if not result.away.matches:
+            if form["away_team"] and not result.away.matches:
                 messages.append(f"Unknown away team “{form['away_team']}”. Try NYY or Yankees.")
-            elif not result.away.unique:
+            elif form["away_team"] and not result.away.unique:
                 messages.append("Away team is ambiguous — pick one of the matches.")
             for message in messages:
                 flash(message, "error")
@@ -105,7 +109,7 @@ def create_app(
     def confirm():
         pending = _pending_from_session()
         if pending is None:
-            flash("Start by entering a date and two teams.", "error")
+            flash("Start by entering a date plus a team, or both teams plus a year.", "error")
             return redirect(url_for("add_game"))
         return render_template("confirm.html", pending=pending)
 
@@ -153,6 +157,10 @@ def create_app(
         if pending is None:
             flash("That add expired. Enter the game again.", "error")
             return redirect(url_for("add_game"))
+        full_date, _, _ = parse_date_input(pending.date)
+        if not (full_date and pending.home_team and pending.away_team):
+            flash("Saving without a match needs a date and both teams.", "error")
+            return redirect(url_for("add_game", date=pending.date, home_team=pending.home_team, away_team=pending.away_team, notes=pending.notes))
         conn = get_conn()
         game_id = save_personal_only(conn, pending)
         conn.close()
@@ -176,6 +184,20 @@ def create_app(
             flash("Game not found.", "error")
             return redirect(url_for("games"))
         return render_template("game.html", game=game)
+
+    @app.route("/games/<int:game_id>/notes", methods=["POST"])
+    def update_notes(game_id: int):
+        conn = get_conn()
+        game = db.get_attended_game(conn, game_id)
+        if game is None:
+            conn.close()
+            flash("Game not found.", "error")
+            return redirect(url_for("games"))
+        notes = (request.form.get("notes") or "").strip()
+        db.update_attended_game(conn, game_id, {"notes": notes or None})
+        conn.close()
+        flash("Notes saved.", "ok")
+        return redirect(url_for("game_detail", game_id=game_id))
 
     @app.route("/games/<int:game_id>/delete", methods=["POST"])
     def delete_game(game_id: int):
