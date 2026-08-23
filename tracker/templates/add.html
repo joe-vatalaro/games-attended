@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Add a game{% endblock %}
+{% block body %}
+  <h2>Add a game</h2>
+  <p class="muted">Date and teams are enough. You will confirm the official MLB game next.</p>
+  <form method="post" class="card" id="add-form">
+    <label for="date">Date</label>
+    <input id="date" name="date" type="date" required value="{{ form.date }}">
+
+    <div class="row-2">
+      <div>
+        <label for="away_team">Away team</label>
+        <input id="away_team" name="away_team" type="text" required list="team-list" value="{{ form.away_team }}" placeholder="Yankees or NYY">
+        {% if away_choices %}
+          <div class="choices">
+            {% for team in away_choices %}
+              <button type="button" data-target="away_team" data-value="{{ team.abbreviation }}">{{ team.abbreviation }} — {{ team.name }}</button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+      <div>
+        <label for="home_team">Home team</label>
+        <input id="home_team" name="home_team" type="text" required list="team-list" value="{{ form.home_team }}" placeholder="Red Sox or BOS">
+        {% if home_choices %}
+          <div class="choices">
+            {% for team in home_choices %}
+              <button type="button" data-target="home_team" data-value="{{ team.abbreviation }}">{{ team.abbreviation }} — {{ team.name }}</button>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <datalist id="team-list">
+      {% for team in teams %}
+        <option value="{{ team.abbreviation }}">{{ team.name }}</option>
+        <option value="{{ team.name }}"></option>
+      {% endfor %}
+    </datalist>
+
+    <label for="notes">Notes</label>
+    <textarea id="notes" name="notes" placeholder="Who you went with, memorable moments">{{ form.notes }}</textarea>
+
+    <details>
+      <summary class="muted">Seats and venue (optional)</summary>
+      <label for="venue">Venue</label>
+      <input id="venue" name="venue" type="text" value="{{ form.venue }}">
+      <div class="row-3">
+        <div>
+          <label for="seat_section">Section</label>
+          <input id="seat_section" name="seat_section" type="text" value="{{ form.seat_section }}">
+        </div>
+        <div>
+          <label for="seat_row">Row</label>
+          <input id="seat_row" name="seat_row" type="text" value="{{ form.seat_row }}">
+        </div>
+        <div>
+          <label for="seat_seat">Seat</label>
+          <input id="seat_seat" name="seat_seat" type="text" value="{{ form.seat_seat }}">
+        </div>
+      </div>
+    </details>
+
+    <div class="actions">
+      <button type="submit">Find official game</button>
+    </div>
+  </form>
+  <script>
+    document.querySelectorAll(".choices button").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.getElementById(button.dataset.target).value = button.dataset.value;
+      });
+    });
+  </script>
+{% endblock %}

@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# App data
+data/games.db
+data/games.db-journal
+data/cache/
+data/secret_key
+report.html

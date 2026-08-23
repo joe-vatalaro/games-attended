@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ game.away_team }} @ {{ game.home_team }}{% endblock %}
+{% block body %}
+  <h2>{{ game.away_team }} @ {{ game.home_team }}</h2>
+  <p class="muted">{{ game.official_date or game.date }} · {{ game.mlb_venue or game.venue or "Venue unknown" }}</p>
+
+  {% if game.home_score is not none %}
+    <p class="score" style="font-size:1.6rem">
+      {{ game.away_score }}–{{ game.home_score }}
+    </p>
+    <p>
+      {% if game.winning_pitcher %}WP {{ game.winning_pitcher }}{% endif %}
+      {% if game.losing_pitcher %} · LP {{ game.losing_pitcher }}{% endif %}
+      {% if game.save_pitcher %} · SV {{ game.save_pitcher }}{% endif %}
+    </p>
+    <p class="muted">
+      Starters: {{ game.away_starter or "?" }} / {{ game.home_starter or "?" }}
+      {% if game.attendance %} · {{ "{:,}".format(game.attendance) }} fans{% endif %}
+      {% if game.duration_minutes %} · {{ game.duration_minutes }} min{% endif %}
+      {% if game.innings %} · {{ game.innings }} inn{% endif %}
+    </p>
+    {% if game.weather_condition or game.weather_temp %}
+      <p class="muted">
+        {{ game.weather_condition or "" }}
+        {% if game.weather_temp %} {{ game.weather_temp }}°F{% endif %}
+        {% if game.weather_wind %} · {{ game.weather_wind }}{% endif %}
+      </p>
+    {% endif %}
+    {% if game.is_walkoff or game.is_extra_innings or game.is_no_hitter %}
+      <p>
+        {% if game.is_walkoff %}<span class="badge">Walk-off</span>{% endif %}
+        {% if game.is_extra_innings %}<span class="badge">Extras</span>{% endif %}
+        {% if game.is_no_hitter %}<span class="badge">No-hitter</span>{% endif %}
+      </p>
+    {% endif %}
+  {% else %}
+    <p>No official boxscore attached yet.</p>
+  {% endif %}
+
+  <div class="card">
+    <h3>Your notes</h3>
+    <p>{{ game.notes or "—" }}</p>
+    {% if game.seat_section or game.seat_row or game.seat_seat %}
+      <p class="muted">Seat {{ game.seat_section }} / {{ game.seat_row }} / {{ game.seat_seat }}</p>
+    {% endif %}
+  </div>
+
+  <div class="actions">
+    {% if game.mlb_game_pk %}
+      <form method="post" action="{{ url_for('refresh_game', game_id=game.id) }}">
+        <button class="secondary" type="submit">Refresh from MLB</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('rematch_game', game_id=game.id) }}">
+        <button type="submit">Find official game</button>
+      </form>
+    {% endif %}
+    <a class="btn quiet" href="{{ url_for('games') }}">Back to list</a>
+    <form method="post" action="{{ url_for('delete_game', game_id=game.id) }}"
+          onsubmit="return confirm('Delete this game from your log?');">
+      <button class="danger" type="submit">Delete</button>
+    </form>
+  </div>
+{% endblock %}

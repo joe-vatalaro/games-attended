@@ -1,0 +1,193 @@
+{
+  "teams": [
+    {
+      "id": 109,
+      "name": "Arizona Diamondbacks",
+      "abbreviation": "AZ",
+      "aliases": ["az", "ari", "arizona", "arizona diamondbacks", "diamondbacks", "d-backs", "dbacks", "d backs", "snakes"]
+    },
+    {
+      "id": 133,
+      "name": "Athletics",
+      "abbreviation": "ATH",
+      "aliases": ["ath", "oak", "athletics", "a's", "as", "oakland", "oakland athletics", "sacramento", "sacramento athletics"]
+    },
+    {
+      "id": 144,
+      "name": "Atlanta Braves",
+      "abbreviation": "ATL",
+      "aliases": ["atl", "atlanta", "atlanta braves", "braves"]
+    },
+    {
+      "id": 110,
+      "name": "Baltimore Orioles",
+      "abbreviation": "BAL",
+      "aliases": ["bal", "baltimore", "baltimore orioles", "orioles", "os"]
+    },
+    {
+      "id": 111,
+      "name": "Boston Red Sox",
+      "abbreviation": "BOS",
+      "aliases": ["bos", "boston", "boston red sox", "red sox", "redsox"]
+    },
+    {
+      "id": 112,
+      "name": "Chicago Cubs",
+      "abbreviation": "CHC",
+      "aliases": ["chc", "chicago cubs", "cubs", "chi cubs"]
+    },
+    {
+      "id": 145,
+      "name": "Chicago White Sox",
+      "abbreviation": "CWS",
+      "aliases": ["cws", "chw", "chicago white sox", "white sox", "whitesox", "chi white sox"]
+    },
+    {
+      "id": 113,
+      "name": "Cincinnati Reds",
+      "abbreviation": "CIN",
+      "aliases": ["cin", "cincinnati", "cincinnati reds", "reds"]
+    },
+    {
+      "id": 114,
+      "name": "Cleveland Guardians",
+      "abbreviation": "CLE",
+      "aliases": ["cle", "cleveland", "cleveland guardians", "guardians", "indians"]
+    },
+    {
+      "id": 115,
+      "name": "Colorado Rockies",
+      "abbreviation": "COL",
+      "aliases": ["col", "colorado", "colorado rockies", "rockies"]
+    },
+    {
+      "id": 116,
+      "name": "Detroit Tigers",
+      "abbreviation": "DET",
+      "aliases": ["det", "detroit", "detroit tigers", "tigers"]
+    },
+    {
+      "id": 117,
+      "name": "Houston Astros",
+      "abbreviation": "HOU",
+      "aliases": ["hou", "houston", "houston astros", "astros", "stros"]
+    },
+    {
+      "id": 118,
+      "name": "Kansas City Royals",
+      "abbreviation": "KC",
+      "aliases": ["kc", "kcr", "kansas city", "kansas city royals", "royals"]
+    },
+    {
+      "id": 108,
+      "name": "Los Angeles Angels",
+      "abbreviation": "LAA",
+      "aliases": ["laa", "ana", "angels", "los angeles angels", "la angels", "anaheim", "anaheim angels", "california angels", "halos"]
+    },
+    {
+      "id": 119,
+      "name": "Los Angeles Dodgers",
+      "abbreviation": "LAD",
+      "aliases": ["lad", "dodgers", "los angeles dodgers", "la dodgers"]
+    },
+    {
+      "id": 146,
+      "name": "Miami Marlins",
+      "abbreviation": "MIA",
+      "aliases": ["mia", "fla", "miami", "miami marlins", "marlins", "florida", "florida marlins"]
+    },
+    {
+      "id": 158,
+      "name": "Milwaukee Brewers",
+      "abbreviation": "MIL",
+      "aliases": ["mil", "milwaukee", "milwaukee brewers", "brewers", "brew crew"]
+    },
+    {
+      "id": 142,
+      "name": "Minnesota Twins",
+      "abbreviation": "MIN",
+      "aliases": ["min", "minnesota", "minnesota twins", "twins"]
+    },
+    {
+      "id": 121,
+      "name": "New York Mets",
+      "abbreviation": "NYM",
+      "aliases": ["nym", "mets", "new york mets", "ny mets"]
+    },
+    {
+      "id": 147,
+      "name": "New York Yankees",
+      "abbreviation": "NYY",
+      "aliases": ["nyy", "yankees", "yanks", "new york yankees", "ny yankees"]
+    },
+    {
+      "id": 143,
+      "name": "Philadelphia Phillies",
+      "abbreviation": "PHI",
+      "aliases": ["phi", "philadelphia", "philadelphia phillies", "phillies", "phils"]
+    },
+    {
+      "id": 134,
+      "name": "Pittsburgh Pirates",
+      "abbreviation": "PIT",
+      "aliases": ["pit", "pittsburgh", "pittsburgh pirates", "pirates", "bucs"]
+    },
+    {
+      "id": 135,
+      "name": "San Diego Padres",
+      "abbreviation": "SD",
+      "aliases": ["sd", "sdp", "san diego", "san diego padres", "padres", "pads"]
+    },
+    {
+      "id": 137,
+      "name": "San Francisco Giants",
+      "abbreviation": "SF",
+      "aliases": ["sf", "sfg", "san francisco", "san francisco giants", "giants"]
+    },
+    {
+      "id": 136,
+      "name": "Seattle Mariners",
+      "abbreviation": "SEA",
+      "aliases": ["sea", "seattle", "seattle mariners", "mariners", "ms"]
+    },
+    {
+      "id": 138,
+      "name": "St. Louis Cardinals",
+      "abbreviation": "STL",
+      "aliases": ["stl", "st louis", "st. louis", "saint louis", "st louis cardinals", "st. louis cardinals", "cardinals", "cards"]
+    },
+    {
+      "id": 139,
+      "name": "Tampa Bay Rays",
+      "abbreviation": "TB",
+      "aliases": ["tb", "tbr", "tampa", "tampa bay", "tampa bay rays", "rays", "devil rays"]
+    },
+    {
+      "id": 140,
+      "name": "Texas Rangers",
+      "abbreviation": "TEX",
+      "aliases": ["tex", "texas", "texas rangers", "rangers"]
+    },
+    {
+      "id": 141,
+      "name": "Toronto Blue Jays",
+      "abbreviation": "TOR",
+      "aliases": ["tor", "toronto", "toronto blue jays", "blue jays", "bluejays", "jays"]
+    },
+    {
+      "id": 120,
+      "name": "Washington Nationals",
+      "abbreviation": "WSH",
+      "aliases": ["wsh", "was", "washington", "washington nationals", "nationals", "nats"]
+    }
+  ],
+  "ambiguous": {
+    "sox": [111, 145],
+    "chicago": [112, 145],
+    "chi": [112, 145],
+    "la": [108, 119],
+    "los angeles": [108, 119],
+    "ny": [121, 147],
+    "new york": [121, 147]
+  }
+}

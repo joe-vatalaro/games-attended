@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Confirm game{% endblock %}
+{% block body %}
+  <h2>Confirm the game</h2>
+  <p>
+    You entered <strong>{{ pending.away_team }} @ {{ pending.home_team }}</strong>
+    on <strong>{{ pending.date }}</strong>.
+  </p>
+
+  {% if pending.candidates %}
+    {% for candidate in pending.candidates %}
+      <article class="card candidate">
+        <h2>{{ candidate.away_team }} @ {{ candidate.home_team }}</h2>
+        <p class="muted">
+          {{ candidate.official_date }}
+          · {{ candidate.venue_name or "Unknown venue" }}
+          {% if candidate.doubleheader != "N" %}
+            · <span class="badge">Doubleheader game {{ candidate.game_number }}</span>
+          {% endif %}
+        </p>
+        <p class="score">
+          {% if candidate.away_score is not none %}
+            Final: {{ candidate.away_team }} {{ candidate.away_score }}, {{ candidate.home_team }} {{ candidate.home_score }}
+          {% else %}
+            Final score unavailable
+          {% endif %}
+        </p>
+        {% if candidate.winning_pitcher or candidate.losing_pitcher %}
+          <p class="muted">
+            {% if candidate.winning_pitcher %}WP: {{ candidate.winning_pitcher }}{% endif %}
+            {% if candidate.losing_pitcher %} · LP: {{ candidate.losing_pitcher }}{% endif %}
+          </p>
+        {% endif %}
+
+        {% if candidate.already_logged_id %}
+          <p><span class="badge">Already in your log</span></p>
+          <div class="actions">
+            <a class="btn" href="{{ url_for('game_detail', game_id=candidate.already_logged_id) }}">Open saved game</a>
+            <form method="post" action="{{ url_for('confirm_reject') }}">
+              <input type="hidden" name="game_pk" value="{{ candidate.game_pk }}">
+              <button class="quiet" type="submit">Dismiss</button>
+            </form>
+          </div>
+        {% else %}
+          <div class="actions">
+            <form method="post" action="{{ url_for('confirm_accept') }}">
+              <input type="hidden" name="game_pk" value="{{ candidate.game_pk }}">
+              <button type="submit">Accept</button>
+            </form>
+            <form method="post" action="{{ url_for('confirm_reject') }}">
+              <input type="hidden" name="game_pk" value="{{ candidate.game_pk }}">
+              <button class="danger" type="submit">Reject</button>
+            </form>
+          </div>
+        {% endif %}
+      </article>
+    {% endfor %}
+  {% else %}
+    <div class="card">
+      <p>No completed MLB game for that date and those teams.</p>
+      <p class="muted">If the date is wrong, go back and edit. If you still want the memory logged, save a personal-only row and confirm it later.</p>
+      <div class="actions">
+        <a class="btn secondary" href="{{ url_for('add_game', date=pending.date, home_team=pending.home_team, away_team=pending.away_team, notes=pending.notes, venue=pending.venue, seat_section=pending.seat_section, seat_row=pending.seat_row, seat_seat=pending.seat_seat) }}">Edit details</a>
+        <form method="post" action="{{ url_for('confirm_personal') }}">
+          <button type="submit">Save personal-only</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

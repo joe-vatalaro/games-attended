@@ -1,0 +1,595 @@
+{
+  "gameData": {
+    "game": {
+      "pk": 746946,
+      "type": "R",
+      "doubleHeader": "N",
+      "id": "2024/06/15/nyamlb-bosmlb-1",
+      "gamedayType": "P",
+      "tiebreaker": "N",
+      "gameNumber": 1,
+      "calendarEventID": "14-746946-2024-06-15",
+      "season": "2024",
+      "seasonDisplay": "2024"
+    },
+    "datetime": {
+      "dateTime": "2024-06-15T23:15:00Z",
+      "originalDate": "2024-06-15",
+      "officialDate": "2024-06-15",
+      "dayNight": "night",
+      "time": "7:15",
+      "ampm": "PM"
+    },
+    "status": {
+      "abstractGameState": "Final",
+      "codedGameState": "F",
+      "detailedState": "Final",
+      "statusCode": "F",
+      "startTimeTBD": false,
+      "abstractGameCode": "F"
+    },
+    "teams": {
+      "home": {
+        "id": 111,
+        "name": "Boston Red Sox"
+      },
+      "away": {
+        "id": 147,
+        "name": "New York Yankees"
+      }
+    },
+    "venue": {
+      "id": 3,
+      "name": "Fenway Park"
+    },
+    "weather": {
+      "condition": "Clear",
+      "temp": "76",
+      "wind": "10 mph, L To R"
+    },
+    "gameInfo": {
+      "attendance": 36673,
+      "firstPitch": "2024-06-15T23:17:00.000Z",
+      "gameDurationMinutes": 188
+    },
+    "flags": {
+      "noHitter": false,
+      "perfectGame": false,
+      "awayTeamNoHitter": false,
+      "awayTeamPerfectGame": false,
+      "homeTeamNoHitter": false,
+      "homeTeamPerfectGame": false
+    }
+  },
+  "liveData": {
+    "decisions": {
+      "winner": {
+        "id": 686580,
+        "fullName": "Justin Slaten",
+        "link": "/api/v1/people/686580"
+      },
+      "loser": {
+        "id": 607074,
+        "fullName": "Carlos Rod\u00f3n",
+        "link": "/api/v1/people/607074"
+      },
+      "save": {
+        "id": 445276,
+        "fullName": "Kenley Jansen",
+        "link": "/api/v1/people/445276"
+      }
+    },
+    "boxscore": {
+      "teams": {
+        "home": {
+          "team": {
+            "id": 111,
+            "name": "Boston Red Sox"
+          },
+          "pitchers": [
+            681867,
+            686580,
+            657514,
+            669711,
+            445276
+          ],
+          "players": {
+            "ID681867": {
+              "person": {
+                "id": 681867,
+                "fullName": "Cooper Criswell"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 1
+                }
+              }
+            },
+            "ID686580": {
+              "person": {
+                "id": 686580,
+                "fullName": "Justin Slaten"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            },
+            "ID657514": {
+              "person": {
+                "id": 657514,
+                "fullName": "Brennan Bernardino"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            },
+            "ID669711": {
+              "person": {
+                "id": 669711,
+                "fullName": "Greg Weissert"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            },
+            "ID445276": {
+              "person": {
+                "id": 445276,
+                "fullName": "Kenley Jansen"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            }
+          }
+        },
+        "away": {
+          "team": {
+            "id": 147,
+            "name": "New York Yankees"
+          },
+          "pitchers": [
+            607074,
+            676760,
+            624647
+          ],
+          "players": {
+            "ID607074": {
+              "person": {
+                "id": 607074,
+                "fullName": "Carlos Rod\u00f3n"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 1
+                }
+              }
+            },
+            "ID676760": {
+              "person": {
+                "id": 676760,
+                "fullName": "Ron Marinaccio"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            },
+            "ID624647": {
+              "person": {
+                "id": 624647,
+                "fullName": "Victor Gonz\u00e1lez"
+              },
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "linescore": {
+      "currentInning": 9,
+      "scheduledInnings": 9,
+      "innings": [
+        {
+          "num": 1,
+          "ordinalNum": "1st",
+          "home": {
+            "runs": 3,
+            "hits": 4,
+            "errors": 0,
+            "leftOnBase": 2
+          },
+          "away": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 1
+          }
+        },
+        {
+          "num": 2,
+          "ordinalNum": "2nd",
+          "home": {
+            "runs": 2,
+            "hits": 3,
+            "errors": 0,
+            "leftOnBase": 2
+          },
+          "away": {
+            "runs": 2,
+            "hits": 2,
+            "errors": 0,
+            "leftOnBase": 1
+          }
+        },
+        {
+          "num": 3,
+          "ordinalNum": "3rd",
+          "home": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 0
+          },
+          "away": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 0
+          }
+        },
+        {
+          "num": 4,
+          "ordinalNum": "4th",
+          "home": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 1
+          },
+          "away": {
+            "runs": 0,
+            "hits": 1,
+            "errors": 0,
+            "leftOnBase": 1
+          }
+        },
+        {
+          "num": 5,
+          "ordinalNum": "5th",
+          "home": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 1,
+            "leftOnBase": 0
+          },
+          "away": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 3
+          }
+        },
+        {
+          "num": 6,
+          "ordinalNum": "6th",
+          "home": {
+            "runs": 0,
+            "hits": 1,
+            "errors": 0,
+            "leftOnBase": 2
+          },
+          "away": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 0
+          }
+        },
+        {
+          "num": 7,
+          "ordinalNum": "7th",
+          "home": {
+            "runs": 1,
+            "hits": 2,
+            "errors": 0,
+            "leftOnBase": 1
+          },
+          "away": {
+            "runs": 1,
+            "hits": 2,
+            "errors": 0,
+            "leftOnBase": 1
+          }
+        },
+        {
+          "num": 8,
+          "ordinalNum": "8th",
+          "home": {
+            "runs": 2,
+            "hits": 2,
+            "errors": 0,
+            "leftOnBase": 0
+          },
+          "away": {
+            "runs": 1,
+            "hits": 1,
+            "errors": 1,
+            "leftOnBase": 2
+          }
+        },
+        {
+          "num": 9,
+          "ordinalNum": "9th",
+          "home": {
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 0
+          },
+          "away": {
+            "runs": 0,
+            "hits": 0,
+            "errors": 0,
+            "leftOnBase": 0
+          }
+        }
+      ],
+      "teams": {
+        "home": {
+          "runs": 8,
+          "hits": 12,
+          "errors": 1,
+          "leftOnBase": 8
+        },
+        "away": {
+          "runs": 4,
+          "hits": 6,
+          "errors": 1,
+          "leftOnBase": 9
+        }
+      }
+    },
+    "plays": {
+      "allPlays": [
+        {
+          "about": {
+            "atBatIndex": 6,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 1,
+            "startTime": "2024-06-15T23:30:29.014Z",
+            "endTime": "2024-06-15T23:31:25.811Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 61
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Double",
+            "eventType": "double",
+            "description": "Tyler O'Neill doubles (7) on a sharp line drive to left fielder Juan Soto. Jarren Duran scores.",
+            "rbi": 1,
+            "awayScore": 0,
+            "homeScore": 1,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 8,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 1,
+            "startTime": "2024-06-15T23:35:07.790Z",
+            "endTime": "2024-06-15T23:36:40.001Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 70
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Single",
+            "eventType": "single",
+            "description": "Connor Wong singles on a ground ball to center fielder Aaron Judge, deflected by second baseman Gleyber Torres. Tyler O'Neill scores. Rafael Devers to 2nd.",
+            "rbi": 1,
+            "awayScore": 0,
+            "homeScore": 2,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 10,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 1,
+            "startTime": "2024-06-15T23:38:20.405Z",
+            "endTime": "2024-06-15T23:39:40.279Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 71
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Double",
+            "eventType": "double",
+            "description": "Jamie Westbrook doubles (1) on a sharp fly ball to left fielder Juan Soto. Rafael Devers scores. Connor Wong to 3rd.",
+            "rbi": 1,
+            "awayScore": 0,
+            "homeScore": 3,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 16,
+            "halfInning": "top",
+            "isTopInning": true,
+            "inning": 2,
+            "startTime": "2024-06-15T23:51:16.753Z",
+            "endTime": "2024-06-15T23:53:19.344Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 33
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Single",
+            "eventType": "single",
+            "description": "DJ LeMahieu singles on a fly ball to center fielder Jarren Duran. Giancarlo Stanton scores. Anthony Rizzo scores.",
+            "rbi": 2,
+            "awayScore": 2,
+            "homeScore": 3,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 22,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 2,
+            "startTime": "2024-06-16T00:05:25.689Z",
+            "endTime": "2024-06-16T00:08:55.888Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 71
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Double",
+            "eventType": "double",
+            "description": "Rafael Devers doubles (14) on a sharp line drive to center fielder Aaron Judge. Rob Refsnyder scores. Tyler O'Neill scores.",
+            "rbi": 2,
+            "awayScore": 2,
+            "homeScore": 5,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 58,
+            "halfInning": "top",
+            "isTopInning": true,
+            "inning": 7,
+            "startTime": "2024-06-16T01:28:13.752Z",
+            "endTime": "2024-06-16T01:29:57.481Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": true,
+            "hasOut": false,
+            "captivatingIndex": 38
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Home Run",
+            "eventType": "home_run",
+            "description": "Umpire reviewed (home run), call on the field was overturned: Juan Soto homers (18) on a fly ball to center field.",
+            "rbi": 1,
+            "awayScore": 3,
+            "homeScore": 5,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 64,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 7,
+            "startTime": "2024-06-16T01:42:29.155Z",
+            "endTime": "2024-06-16T01:43:47.280Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": true,
+            "hasOut": false,
+            "captivatingIndex": 70
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Single",
+            "eventType": "single",
+            "description": "Yankees challenged (tag play), call on the field was upheld: Enmanuel Valdez singles on a sharp line drive to center fielder Aaron Judge. Masataka Yoshida scores.",
+            "rbi": 1,
+            "awayScore": 3,
+            "homeScore": 6,
+            "isOut": false
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 70,
+            "halfInning": "top",
+            "isTopInning": true,
+            "inning": 8,
+            "startTime": "2024-06-16T02:01:00.428Z",
+            "endTime": "2024-06-16T02:02:13.635Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": true,
+            "hasOut": true,
+            "captivatingIndex": 0
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Forceout",
+            "eventType": "force_out",
+            "description": "Umpire reviewed (force play), call on the field was upheld: DJ LeMahieu grounds into a force out, shortstop Ceddanne Rafaela to second baseman Enmanuel Valdez. Anthony Rizzo scores. Gleyber Torres to 3rd. Jahmai Jones out at 2nd. DJ LeMahieu to 1st.",
+            "rbi": 1,
+            "awayScore": 4,
+            "homeScore": 6,
+            "isOut": true
+          }
+        },
+        {
+          "about": {
+            "atBatIndex": 73,
+            "halfInning": "bottom",
+            "isTopInning": false,
+            "inning": 8,
+            "startTime": "2024-06-16T02:11:41.637Z",
+            "endTime": "2024-06-16T02:12:59.578Z",
+            "isComplete": true,
+            "isScoringPlay": true,
+            "hasReview": false,
+            "hasOut": false,
+            "captivatingIndex": 70
+          },
+          "result": {
+            "type": "atBat",
+            "event": "Single",
+            "eventType": "single",
+            "description": "Jarren Duran singles on a ground ball to center fielder Aaron Judge. Ceddanne Rafaela scores. Jarren Duran to 2nd.",
+            "rbi": 1,
+            "awayScore": 4,
+            "homeScore": 7,
+            "isOut": false
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Games attended{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="wrap">
+    <header class="site">
+      <h1><a href="{{ url_for('dashboard') }}">Games attended</a></h1>
+      <nav>
+        <a href="{{ url_for('add_game') }}">Add</a>
+        <a href="{{ url_for('games') }}">Games</a>
+        <a href="{{ url_for('report') }}">Report</a>
+      </nav>
+    </header>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    {% block body %}{% endblock %}
+  </div>
+</body>
+</html>

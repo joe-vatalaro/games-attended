@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Games attended{% endblock %}
+{% block body %}
+  <div class="grid">
+    <div class="stat"><div class="n">{{ game_count }}</div><div class="l">Games logged</div></div>
+    <div class="stat"><div class="n">{{ unmatched|length }}</div><div class="l">Unmatched</div></div>
+    <div class="stat"><div class="n">{{ unenriched|length }}</div><div class="l">Need enrich</div></div>
+  </div>
+  <p class="actions" style="margin-top:1.2rem">
+    <a class="btn" href="{{ url_for('add_game') }}">Add a game</a>
+    <a class="btn secondary" href="{{ url_for('report') }}">Open report</a>
+  </p>
+
+  {% if unmatched %}
+    <section>
+      <h2>Not yet confirmed</h2>
+      <ul>
+        {% for game in unmatched %}
+          <li>
+            {{ game.date }}: {{ game.away_team }} @ {{ game.home_team }}
+            — <a href="{{ url_for('game_detail', game_id=game.id) }}">open</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section>
+    <h2>Recent</h2>
+    {% if games %}
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Matchup</th><th>Score</th></tr>
+        </thead>
+        <tbody>
+          {% for game in games %}
+            <tr>
+              <td>{{ game.official_date or game.date }}</td>
+              <td><a href="{{ url_for('game_detail', game_id=game.id) }}">{{ game.away_team }} @ {{ game.home_team }}</a></td>
+              <td class="score">
+                {% if game.away_score is not none %}{{ game.away_score }}–{{ game.home_score }}{% else %}—{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">Nothing logged yet. Add a game with a date and two teams.</p>
+    {% endif %}
+  </section>
+{% endblock %}

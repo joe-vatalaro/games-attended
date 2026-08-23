@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}All games{% endblock %}
+{% block body %}
+  <h2>All games</h2>
+  {% if games %}
+    <table>
+      <thead>
+        <tr><th>Date</th><th>Matchup</th><th>Score</th><th>Park</th></tr>
+      </thead>
+      <tbody>
+        {% for game in games %}
+          <tr>
+            <td>{{ game.official_date or game.date }}</td>
+            <td><a href="{{ url_for('game_detail', game_id=game.id) }}">{{ game.away_team }} @ {{ game.home_team }}</a></td>
+            <td class="score">
+              {% if game.away_score is not none %}{{ game.away_score }}–{{ game.home_score }}{% else %}unmatched{% endif %}
+            </td>
+            <td>{{ game.venue_name or game.venue or "—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No games yet.</p>
+  {% endif %}
+{% endblock %}
