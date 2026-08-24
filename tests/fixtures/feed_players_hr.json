@@ -1,0 +1,196 @@
+{
+  "gamePk": 900001,
+  "gameData": {
+    "game": {"pk": 900001, "type": "R", "season": "2024"},
+    "datetime": {"officialDate": "2024-07-04"},
+    "status": {"detailedState": "Final"},
+    "teams": {
+      "home": {"id": 147, "name": "New York Yankees"},
+      "away": {"id": 141, "name": "Toronto Blue Jays"}
+    },
+    "venue": {"id": 3313, "name": "Yankee Stadium"},
+    "weather": {"condition": "Clear", "temp": "82", "wind": "8 mph L to R"},
+    "gameInfo": {"attendance": 45000, "gameDurationMinutes": 175},
+    "flags": {}
+  },
+  "liveData": {
+    "decisions": {
+      "winner": {"id": 222222, "fullName": "Test Starter"},
+      "loser": {"id": 333333, "fullName": "Opp Starter"}
+    },
+    "boxscore": {
+      "teams": {
+        "away": {
+          "team": {"id": 141, "name": "Toronto Blue Jays"},
+          "battingOrder": [111111, 111112],
+          "batters": [111111, 111112, 111113],
+          "pitchers": [333333],
+          "players": {
+            "ID111111": {
+              "person": {"id": 111111, "fullName": "Nathan Lukes"},
+              "battingOrder": "100",
+              "stats": {
+                "batting": {
+                  "plateAppearances": 4,
+                  "atBats": 4,
+                  "hits": 2,
+                  "doubles": 0,
+                  "triples": 0,
+                  "homeRuns": 1,
+                  "runs": 1,
+                  "rbi": 2,
+                  "baseOnBalls": 0,
+                  "strikeOuts": 1,
+                  "stolenBases": 0,
+                  "hitByPitch": 0
+                }
+              }
+            },
+            "ID111112": {
+              "person": {"id": 111112, "fullName": "Vladimir Guerrero Jr."},
+              "battingOrder": "200",
+              "stats": {
+                "batting": {
+                  "plateAppearances": 4,
+                  "atBats": 3,
+                  "hits": 1,
+                  "doubles": 1,
+                  "triples": 0,
+                  "homeRuns": 0,
+                  "runs": 0,
+                  "rbi": 0,
+                  "baseOnBalls": 1,
+                  "strikeOuts": 0,
+                  "stolenBases": 0,
+                  "hitByPitch": 0
+                }
+              }
+            },
+            "ID111113": {
+              "person": {"id": 111113, "fullName": "Pinch Hitter"},
+              "battingOrder": "101",
+              "stats": {
+                "batting": {
+                  "plateAppearances": 1,
+                  "atBats": 1,
+                  "hits": 0,
+                  "doubles": 0,
+                  "triples": 0,
+                  "homeRuns": 0,
+                  "runs": 0,
+                  "rbi": 0,
+                  "baseOnBalls": 0,
+                  "strikeOuts": 1,
+                  "stolenBases": 0,
+                  "hitByPitch": 0
+                }
+              }
+            },
+            "ID333333": {
+              "person": {"id": 333333, "fullName": "Opp Starter"},
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 1,
+                  "outs": 15,
+                  "hits": 6,
+                  "runs": 4,
+                  "earnedRuns": 4,
+                  "baseOnBalls": 2,
+                  "strikeOuts": 5,
+                  "homeRuns": 1,
+                  "wins": 0,
+                  "losses": 1,
+                  "saves": 0,
+                  "holds": 0
+                }
+              }
+            }
+          }
+        },
+        "home": {
+          "team": {"id": 147, "name": "New York Yankees"},
+          "battingOrder": [444444],
+          "batters": [444444],
+          "pitchers": [222222],
+          "players": {
+            "ID444444": {
+              "person": {"id": 444444, "fullName": "Aaron Judge"},
+              "battingOrder": "100",
+              "stats": {
+                "batting": {
+                  "plateAppearances": 4,
+                  "atBats": 4,
+                  "hits": 1,
+                  "doubles": 0,
+                  "triples": 0,
+                  "homeRuns": 0,
+                  "runs": 1,
+                  "rbi": 0,
+                  "baseOnBalls": 0,
+                  "strikeOuts": 2,
+                  "stolenBases": 0,
+                  "hitByPitch": 0
+                }
+              }
+            },
+            "ID222222": {
+              "person": {"id": 222222, "fullName": "Test Starter"},
+              "stats": {
+                "pitching": {
+                  "gamesStarted": 1,
+                  "outs": 18,
+                  "hits": 5,
+                  "runs": 2,
+                  "earnedRuns": 2,
+                  "baseOnBalls": 1,
+                  "strikeOuts": 7,
+                  "homeRuns": 1,
+                  "wins": 1,
+                  "losses": 0,
+                  "saves": 0,
+                  "holds": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "linescore": {
+      "currentInning": 9,
+      "innings": [{}, {}, {}, {}, {}, {}, {}, {}, {}],
+      "teams": {"home": {"runs": 5, "hits": 8}, "away": {"runs": 4, "hits": 7}}
+    },
+    "plays": {
+      "allPlays": [
+        {
+          "about": {
+            "atBatIndex": 7,
+            "halfInning": "top",
+            "inning": 3,
+            "isWalkOff": false
+          },
+          "result": {
+            "eventType": "home_run",
+            "event": "Home Run",
+            "description": "Nathan Lukes homers (8) on a fly ball to right field. Bo Bichette scores.",
+            "rbi": 2
+          },
+          "matchup": {
+            "batter": {"id": 111111, "fullName": "Nathan Lukes"},
+            "pitcher": {"id": 222222, "fullName": "Test Starter"}
+          },
+          "playEvents": [
+            {
+              "hitData": {
+                "launchSpeed": 108.0,
+                "launchAngle": 28.0,
+                "totalDistance": 412.0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

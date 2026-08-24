@@ -19,7 +19,18 @@
       {% if game.save_pitcher %} · SV {{ game.save_pitcher }}{% endif %}
     </p>
     <p class="muted">
-      Starters: {{ game.away_starter or "?" }} / {{ game.home_starter or "?" }}
+      Starters:
+      {% if starters.away %}
+        <a href="{{ url_for('player_detail', player_id=starters.away.player_id) }}">{{ starters.away.player_name }}</a>
+      {% else %}
+        {{ game.away_starter or "?" }}
+      {% endif %}
+      /
+      {% if starters.home %}
+        <a href="{{ url_for('player_detail', player_id=starters.home.player_id) }}">{{ starters.home.player_name }}</a>
+      {% else %}
+        {{ game.home_starter or "?" }}
+      {% endif %}
       {% if game.attendance %} · {{ "{:,}".format(game.attendance) }} fans{% endif %}
       {% if game.duration_minutes %} · {{ game.duration_minutes }} min{% endif %}
       {% if game.innings %} · {{ game.innings }} inn{% endif %}
@@ -37,6 +48,46 @@
         {% if game.is_extra_innings %}<span class="badge">Extras</span>{% endif %}
         {% if game.is_no_hitter %}<span class="badge">No-hitter</span>{% endif %}
       </p>
+    {% endif %}
+    {% if lineups.away or lineups.home %}
+      <div class="lineups">
+        <div>
+          <h3>{{ game.away_team }}</h3>
+          <ol class="lineup">
+            {% for batter in lineups.away %}
+              <li><a href="{{ url_for('player_detail', player_id=batter.player_id) }}">{{ batter.player_name }}</a></li>
+            {% endfor %}
+          </ol>
+        </div>
+        <div>
+          <h3>{{ game.home_team }}</h3>
+          <ol class="lineup">
+            {% for batter in lineups.home %}
+              <li><a href="{{ url_for('player_detail', player_id=batter.player_id) }}">{{ batter.player_name }}</a></li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+    {% endif %}
+    {% if home_runs %}
+      <div class="card">
+        <h3>Home runs</h3>
+        <ul class="home-runs">
+          {% for event in home_runs %}
+            <li>
+              {% if event.batter_id %}
+                <a href="{{ url_for('player_detail', player_id=event.batter_id) }}">{{ event.batter_name }}</a>
+              {% else %}
+                {{ event.batter_name }}
+              {% endif %}
+              <span class="muted">
+                · {{ event.inning_half }} {{ event.inning }}
+              </span>
+              <div>{{ event.description }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
     {% endif %}
   {% else %}
     <p>No official boxscore attached yet.</p>

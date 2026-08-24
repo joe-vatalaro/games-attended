@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from tracker import db
-from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_all, resolve_add
+from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_all, reparse_cache, resolve_add
 from tracker.html import render_report_html
 from tracker.mlb import MlbClient
 from tracker.paths import DB_PATH
@@ -35,6 +35,8 @@ def main(argv: list[str] | None = None) -> int:
     enrich.add_argument("--force", action="store_true")
     enrich.add_argument("--id", type=int)
 
+    sub.add_parser("reparse", help="Rebuild official tables from cached feeds.")
+
     report = sub.add_parser("report", help="Print reports.")
     report.add_argument("--html", nargs="?", const="report.html")
 
@@ -60,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_delete(conn, args)
         if args.command == "enrich":
             return _cmd_enrich(conn, args)
+        if args.command == "reparse":
+            return _cmd_reparse(conn)
         if args.command == "report":
             return _cmd_report(conn, args)
     finally:
@@ -151,6 +155,12 @@ def _cmd_enrich(conn, args) -> int:
     return 0
 
 
+def _cmd_reparse(conn) -> int:
+    results = reparse_cache(conn)
+    print(f"Reparsed {len(results)} cached games")
+    return 0
+
+
 def _cmd_report(conn, args) -> int:
     report = build_report(conn)
     if args.html:
@@ -189,4 +199,18 @@ def _cmd_report(conn, args) -> int:
         print("\nUnmatched:")
         for game in report["unmatched"]:
             print(f"  {game['date']}: {game['away_team']} @ {game['home_team']}")
+    players = report["players"]
+    if players["most_seen"]:
+        print("\nMost seen players:")
+        for row in players["most_seen"][:8]:
+            print(f"  {row['player_name']}: {row['games_seen']} games")
+    if players["starters"]:
+        print("\nStarting pitchers seen:")
+        for row in players["starters"][:8]:
+            print(f"  {row['player_name']}: {row['games_started_pitching']} starts")
+    if players["home_run_count"]:
+        print(f"\nHome runs seen: {players['home_run_count']}")
+        for event in players["longest_home_runs"][:3]:
+            distance = f" ({int(event['distance'])} ft)" if event.get("distance") else ""
+            print(f"  {event['batter_name']}: {event['description']}{distance}")
     return 0

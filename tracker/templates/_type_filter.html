@@ -1,0 +1,21 @@
+<form method="get" class="card game-type-filter">
+  <input type="hidden" name="filter" value="1">
+  <span class="muted">Include</span>
+  <label>
+    <input type="checkbox" name="type" value="regular"{% if "regular" in type_groups %} checked{% endif %}>
+    Regular season
+  </label>
+  <label>
+    <input type="checkbox" name="type" value="playoffs"{% if "playoffs" in type_groups %} checked{% endif %}>
+    Playoffs
+  </label>
+  <label>
+    <input type="checkbox" name="type" value="spring"{% if "spring" in type_groups %} checked{% endif %}>
+    Spring training
+  </label>
+  <label>
+    <input type="checkbox" name="type" value="other"{% if "other" in type_groups %} checked{% endif %}>
+    Other
+  </label>
+  <button type="submit">Apply</button>
+</form>

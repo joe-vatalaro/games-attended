@@ -17,7 +17,16 @@ from tracker.enrich import (
 )
 from tracker.mlb import MlbClient, MlbError, game_type_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
-from tracker.reports import build_report, format_record, format_score, parse_report_type_groups
+from tracker.reports import (
+    build_report,
+    format_innings_pitched,
+    format_record,
+    format_score,
+    format_slash,
+    list_player_summaries,
+    parse_report_type_groups,
+    player_page,
+)
 from tracker.teams import all_teams, team_by_id
 
 
@@ -40,6 +49,8 @@ def create_app(
         return {
             "format_record": format_record,
             "format_score": format_score,
+            "format_slash": format_slash,
+            "format_innings_pitched": format_innings_pitched,
             "team_by_id": team_by_id,
             "game_type_label": game_type_label,
         }
@@ -180,11 +191,29 @@ def create_app(
     def game_detail(game_id: int):
         conn = get_conn()
         game = db.get_attended_with_details(conn, game_id)
+        lineups = {"away": [], "home": []}
+        starters = {"away": None, "home": None}
+        home_runs = []
+        if game and game.get("mlb_game_pk"):
+            for row in db.list_player_game_stats(conn, game["mlb_game_pk"]):
+                if row["started_game"]:
+                    lineups[row["side"]].append(row)
+                if row["started_pitching"]:
+                    starters[row["side"]] = row
+            for side in lineups:
+                lineups[side].sort(key=lambda item: item["batting_order"] or 99)
+            home_runs = db.list_game_events(conn, game["mlb_game_pk"], event_type="home_run")
         conn.close()
         if game is None:
             flash("Game not found.", "error")
             return redirect(url_for("games"))
-        return render_template("game.html", game=game)
+        return render_template(
+            "game.html",
+            game=game,
+            lineups=lineups,
+            starters=starters,
+            home_runs=home_runs,
+        )
 
     @app.route("/games/<int:game_id>/notes", methods=["POST"])
     def update_notes(game_id: int):
@@ -260,18 +289,41 @@ def create_app(
         conn.close()
         return redirect(url_for("game_detail", game_id=game_id))
 
+    @app.route("/players")
+    def players():
+        selected = _selected_type_groups()
+        conn = get_conn()
+        rows = list_player_summaries(conn, selected)
+        conn.close()
+        return render_template("players.html", players=rows, type_groups=selected)
+
+    @app.route("/players/<int:player_id>")
+    def player_detail(player_id: int):
+        selected = _selected_type_groups()
+        conn = get_conn()
+        payload = player_page(conn, player_id, selected)
+        conn.close()
+        if payload is None:
+            flash("Player not found.", "error")
+            return redirect(url_for("players"))
+        return render_template("player.html", player=payload, type_groups=selected)
+
     @app.route("/report")
     def report():
-        selected = parse_report_type_groups(
-            request.args.getlist("type"),
-            explicit="filter" in request.args,
-        )
+        selected = _selected_type_groups()
         conn = get_conn()
         payload = build_report(conn, type_groups=selected)
         conn.close()
         return render_template("report.html", report=payload)
 
     return app
+
+
+def _selected_type_groups() -> list[str]:
+    return parse_report_type_groups(
+        request.args.getlist("type"),
+        explicit="filter" in request.args,
+    )
 
 
 def _form_from_request() -> dict[str, str]:

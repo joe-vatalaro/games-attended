@@ -200,6 +200,8 @@ th {
   color: var(--muted);
 }
 
+td a { display: block; }
+
 .notes-text { white-space: pre-wrap; margin: 0 0 0.75rem; }
 
 .muted { color: var(--muted); }
@@ -218,7 +220,26 @@ th {
   color: #78350f;
 }
 
+.lineups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.lineups h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+
+.lineup {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.home-runs { margin: 0; padding-left: 1.15rem; }
+.home-runs li { margin-bottom: 0.65rem; }
+
+.slash { font-variant-numeric: tabular-nums; }
+
 @media (max-width: 640px) {
-  .row-2, .row-3 { grid-template-columns: 1fr; }
+  .row-2, .row-3, .lineups { grid-template-columns: 1fr; }
   header.site { flex-direction: column; align-items: flex-start; }
 }

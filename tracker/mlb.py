@@ -299,6 +299,117 @@ def parse_game_details(feed: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
+    game_pk = _feed_game_pk(feed)
+    boxscore = (feed.get("liveData") or {}).get("boxscore") or {}
+    teams = boxscore.get("teams") or {}
+    rows: list[dict[str, Any]] = []
+    for side in ("away", "home"):
+        team = teams.get(side) or {}
+        team_id = _maybe_int((team.get("team") or {}).get("id"))
+        players = team.get("players") or {}
+        lineup_ids = [_as_int(player_id) for player_id in team.get("battingOrder") or []]
+        lineup_ids = [player_id for player_id in lineup_ids if player_id is not None]
+        seen_ids: set[int] = set()
+        for raw_id in list(team.get("batters") or []) + list(team.get("pitchers") or []) + lineup_ids:
+            player_id = _as_int(raw_id)
+            if player_id is None or player_id in seen_ids:
+                continue
+            seen_ids.add(player_id)
+            player = players.get(f"ID{player_id}") or {}
+            person = player.get("person") or {}
+            name = person.get("fullName")
+            if not name:
+                continue
+            batting = (player.get("stats") or {}).get("batting") or {}
+            pitching = (player.get("stats") or {}).get("pitching") or {}
+            if player_id in lineup_ids:
+                batting_order = lineup_ids.index(player_id) + 1
+                started_game = 1
+            else:
+                batting_order = _maybe_int(player.get("battingOrder"))
+                started_game = 0
+            rows.append(
+                {
+                    "mlb_game_pk": game_pk,
+                    "player_id": player_id,
+                    "player_name": name,
+                    "team_id": team_id,
+                    "side": side,
+                    "batting_order": batting_order,
+                    "started_game": started_game,
+                    "started_pitching": int(bool(pitching.get("gamesStarted"))),
+                    "pa": _maybe_int(batting.get("plateAppearances")),
+                    "ab": _maybe_int(batting.get("atBats")),
+                    "h": _maybe_int(batting.get("hits")),
+                    "doubles": _maybe_int(batting.get("doubles")),
+                    "triples": _maybe_int(batting.get("triples")),
+                    "hr": _maybe_int(batting.get("homeRuns")),
+                    "r": _maybe_int(batting.get("runs")),
+                    "rbi": _maybe_int(batting.get("rbi")),
+                    "bb": _maybe_int(batting.get("baseOnBalls")),
+                    "so": _maybe_int(batting.get("strikeOuts")),
+                    "sb": _maybe_int(batting.get("stolenBases")),
+                    "hbp": _maybe_int(batting.get("hitByPitch")),
+                    "outs": _maybe_int(pitching.get("outs")),
+                    "h_allowed": _maybe_int(pitching.get("hits")),
+                    "r_allowed": _maybe_int(pitching.get("runs")),
+                    "er": _maybe_int(pitching.get("earnedRuns")),
+                    "bb_allowed": _maybe_int(pitching.get("baseOnBalls")),
+                    "so_pitched": _maybe_int(pitching.get("strikeOuts")),
+                    "hr_allowed": _maybe_int(pitching.get("homeRuns")),
+                    "pitching_decision": _pitching_decision(pitching),
+                }
+            )
+    return rows
+
+
+def parse_game_events(feed: dict[str, Any]) -> list[dict[str, Any]]:
+    game_pk = _feed_game_pk(feed)
+    plays = ((feed.get("liveData") or {}).get("plays") or {}).get("allPlays") or []
+    events: list[dict[str, Any]] = []
+    for play in plays:
+        about = play.get("about") or {}
+        result = play.get("result") or {}
+        matchup = play.get("matchup") or {}
+        at_bat_index = _maybe_int(about.get("atBatIndex"))
+        if at_bat_index is None:
+            continue
+        event_type = result.get("eventType")
+        is_walkoff = bool(about.get("isWalkOff"))
+        if event_type == "home_run":
+            stored_type = "home_run"
+        elif is_walkoff:
+            stored_type = "walk_off"
+        else:
+            continue
+        extra: dict[str, Any] = {}
+        hit_data = _last_hit_data(play.get("playEvents") or [])
+        if hit_data:
+            extra.update(hit_data)
+        if is_walkoff:
+            extra["isWalkOff"] = True
+        batter = matchup.get("batter") or {}
+        pitcher = matchup.get("pitcher") or {}
+        events.append(
+            {
+                "mlb_game_pk": game_pk,
+                "at_bat_index": at_bat_index,
+                "event_type": stored_type,
+                "inning": _maybe_int(about.get("inning")),
+                "inning_half": about.get("halfInning"),
+                "batter_id": _maybe_int(batter.get("id")),
+                "batter_name": batter.get("fullName"),
+                "pitcher_id": _maybe_int(pitcher.get("id")),
+                "pitcher_name": pitcher.get("fullName"),
+                "description": result.get("description"),
+                "rbi": _maybe_int(result.get("rbi")),
+                "extra_json": json.dumps(extra) if extra else None,
+            }
+        )
+    return events
+
+
 def _is_final(game: dict[str, Any]) -> bool:
     status = game.get("status") or {}
     return status.get("detailedState") == "Final" or status.get("codedGameState") == "F"
@@ -310,10 +421,39 @@ def _person_name(person: Any) -> str | None:
     return person.get("fullName")
 
 
-def _maybe_int(value: Any) -> int | None:
+def _feed_game_pk(feed: dict[str, Any]) -> int:
+    game = (feed.get("gameData") or {}).get("game") or {}
+    return int(game.get("pk") or feed.get("gamePk"))
+
+
+def _as_int(value: Any) -> int | None:
     if value is None or value == "":
         return None
     return int(value)
+
+
+def _maybe_int(value: Any) -> int | None:
+    return _as_int(value)
+
+
+def _pitching_decision(pitching: dict[str, Any]) -> str | None:
+    if pitching.get("wins"):
+        return "W"
+    if pitching.get("losses"):
+        return "L"
+    if pitching.get("saves"):
+        return "S"
+    if pitching.get("holds"):
+        return "H"
+    return None
+
+
+def _last_hit_data(play_events: list[dict[str, Any]]) -> dict[str, Any] | None:
+    hit_data = None
+    for event in play_events:
+        if event.get("hitData"):
+            hit_data = event["hitData"]
+    return hit_data if isinstance(hit_data, dict) else None
 
 
 def _inning_count(linescore: dict[str, Any]) -> int | None:

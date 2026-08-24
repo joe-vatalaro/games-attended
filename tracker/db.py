@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.paths import DB_PATH, ensure_data_dirs
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS attended_games (
@@ -64,6 +64,55 @@ CREATE TABLE IF NOT EXISTS game_details (
     status TEXT,
     fetched_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS player_game_stats (
+    mlb_game_pk INTEGER NOT NULL,
+    player_id INTEGER NOT NULL,
+    player_name TEXT NOT NULL,
+    team_id INTEGER,
+    side TEXT NOT NULL,
+    batting_order INTEGER,
+    started_game INTEGER NOT NULL DEFAULT 0,
+    started_pitching INTEGER NOT NULL DEFAULT 0,
+    pa INTEGER,
+    ab INTEGER,
+    h INTEGER,
+    doubles INTEGER,
+    triples INTEGER,
+    hr INTEGER,
+    r INTEGER,
+    rbi INTEGER,
+    bb INTEGER,
+    so INTEGER,
+    sb INTEGER,
+    hbp INTEGER,
+    outs INTEGER,
+    h_allowed INTEGER,
+    r_allowed INTEGER,
+    er INTEGER,
+    bb_allowed INTEGER,
+    so_pitched INTEGER,
+    hr_allowed INTEGER,
+    pitching_decision TEXT,
+    PRIMARY KEY (mlb_game_pk, player_id)
+);
+
+CREATE TABLE IF NOT EXISTS game_events (
+    id INTEGER PRIMARY KEY,
+    mlb_game_pk INTEGER NOT NULL,
+    at_bat_index INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    inning INTEGER,
+    inning_half TEXT,
+    batter_id INTEGER,
+    batter_name TEXT,
+    pitcher_id INTEGER,
+    pitcher_name TEXT,
+    description TEXT,
+    rbi INTEGER,
+    extra_json TEXT,
+    UNIQUE (mlb_game_pk, at_bat_index)
+);
 """
 
 
@@ -91,6 +140,59 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         _add_column_if_missing(conn, "game_details", "series_description", "TEXT")
         _add_column_if_missing(conn, "game_details", "series_game_number", "INTEGER")
         conn.execute("PRAGMA user_version = 2")
+    if current < 3:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS player_game_stats (
+                mlb_game_pk INTEGER NOT NULL,
+                player_id INTEGER NOT NULL,
+                player_name TEXT NOT NULL,
+                team_id INTEGER,
+                side TEXT NOT NULL,
+                batting_order INTEGER,
+                started_game INTEGER NOT NULL DEFAULT 0,
+                started_pitching INTEGER NOT NULL DEFAULT 0,
+                pa INTEGER,
+                ab INTEGER,
+                h INTEGER,
+                doubles INTEGER,
+                triples INTEGER,
+                hr INTEGER,
+                r INTEGER,
+                rbi INTEGER,
+                bb INTEGER,
+                so INTEGER,
+                sb INTEGER,
+                hbp INTEGER,
+                outs INTEGER,
+                h_allowed INTEGER,
+                r_allowed INTEGER,
+                er INTEGER,
+                bb_allowed INTEGER,
+                so_pitched INTEGER,
+                hr_allowed INTEGER,
+                pitching_decision TEXT,
+                PRIMARY KEY (mlb_game_pk, player_id)
+            );
+            CREATE TABLE IF NOT EXISTS game_events (
+                id INTEGER PRIMARY KEY,
+                mlb_game_pk INTEGER NOT NULL,
+                at_bat_index INTEGER NOT NULL,
+                event_type TEXT NOT NULL,
+                inning INTEGER,
+                inning_half TEXT,
+                batter_id INTEGER,
+                batter_name TEXT,
+                pitcher_id INTEGER,
+                pitcher_name TEXT,
+                description TEXT,
+                rbi INTEGER,
+                extra_json TEXT,
+                UNIQUE (mlb_game_pk, at_bat_index)
+            );
+            """
+        )
+        conn.execute("PRAGMA user_version = 3")
     conn.commit()
 
 
@@ -173,6 +275,8 @@ def delete_attended_game(conn: sqlite3.Connection, game_id: int) -> dict[str, An
     conn.execute("DELETE FROM attended_games WHERE id = ?", (game_id,))
     if game_pk is not None:
         conn.execute("DELETE FROM game_details WHERE mlb_game_pk = ?", (game_pk,))
+        conn.execute("DELETE FROM player_game_stats WHERE mlb_game_pk = ?", (game_pk,))
+        conn.execute("DELETE FROM game_events WHERE mlb_game_pk = ?", (game_pk,))
     conn.commit()
     return game
 
@@ -287,6 +391,130 @@ def upsert_game_details(conn: sqlite3.Connection, details: dict[str, Any]) -> No
         values,
     )
     conn.commit()
+
+
+PLAYER_STAT_COLUMNS = [
+    "mlb_game_pk",
+    "player_id",
+    "player_name",
+    "team_id",
+    "side",
+    "batting_order",
+    "started_game",
+    "started_pitching",
+    "pa",
+    "ab",
+    "h",
+    "doubles",
+    "triples",
+    "hr",
+    "r",
+    "rbi",
+    "bb",
+    "so",
+    "sb",
+    "hbp",
+    "outs",
+    "h_allowed",
+    "r_allowed",
+    "er",
+    "bb_allowed",
+    "so_pitched",
+    "hr_allowed",
+    "pitching_decision",
+]
+
+GAME_EVENT_COLUMNS = [
+    "mlb_game_pk",
+    "at_bat_index",
+    "event_type",
+    "inning",
+    "inning_half",
+    "batter_id",
+    "batter_name",
+    "pitcher_id",
+    "pitcher_name",
+    "description",
+    "rbi",
+    "extra_json",
+]
+
+
+def replace_player_game_stats(
+    conn: sqlite3.Connection, game_pk: int, rows: list[dict[str, Any]]
+) -> None:
+    conn.execute("DELETE FROM player_game_stats WHERE mlb_game_pk = ?", (game_pk,))
+    placeholders = ", ".join(f":{column}" for column in PLAYER_STAT_COLUMNS)
+    for row in rows:
+        values = {column: row.get(column) for column in PLAYER_STAT_COLUMNS}
+        values["mlb_game_pk"] = game_pk
+        values["started_game"] = int(bool(values.get("started_game")))
+        values["started_pitching"] = int(bool(values.get("started_pitching")))
+        conn.execute(
+            f"""
+            INSERT INTO player_game_stats ({', '.join(PLAYER_STAT_COLUMNS)})
+            VALUES ({placeholders})
+            """,
+            values,
+        )
+    conn.commit()
+
+
+def replace_game_events(
+    conn: sqlite3.Connection, game_pk: int, rows: list[dict[str, Any]]
+) -> None:
+    conn.execute("DELETE FROM game_events WHERE mlb_game_pk = ?", (game_pk,))
+    placeholders = ", ".join(f":{column}" for column in GAME_EVENT_COLUMNS)
+    for row in rows:
+        values = {column: row.get(column) for column in GAME_EVENT_COLUMNS}
+        values["mlb_game_pk"] = game_pk
+        conn.execute(
+            f"""
+            INSERT INTO game_events ({', '.join(GAME_EVENT_COLUMNS)})
+            VALUES ({placeholders})
+            """,
+            values,
+        )
+    conn.commit()
+
+
+def list_player_game_stats(conn: sqlite3.Connection, game_pk: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT * FROM player_game_stats
+        WHERE mlb_game_pk = ?
+        ORDER BY side, batting_order IS NULL, batting_order, player_name
+        """,
+        (game_pk,),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def list_game_events(
+    conn: sqlite3.Connection,
+    game_pk: int,
+    event_type: str | None = None,
+) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM game_events WHERE mlb_game_pk = ?"
+    params: list[Any] = [game_pk]
+    if event_type:
+        sql += " AND event_type = ?"
+        params.append(event_type)
+    sql += " ORDER BY at_bat_index"
+    return [row_to_dict(row) for row in conn.execute(sql, params).fetchall()]
+
+
+def get_player_name(conn: sqlite3.Connection, player_id: int) -> str | None:
+    row = conn.execute(
+        """
+        SELECT player_name FROM player_game_stats
+        WHERE player_id = ?
+        ORDER BY mlb_game_pk DESC
+        LIMIT 1
+        """,
+        (player_id,),
+    ).fetchone()
+    return row["player_name"] if row else None
 
 
 def get_attended_with_details(conn: sqlite3.Connection, game_id: int) -> dict[str, Any] | None:

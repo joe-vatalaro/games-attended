@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}{{ player.player_name }}{% endblock %}
+{% block body %}
+  <h2>{{ player.player_name }}</h2>
+  {% include "_type_filter.html" %}
+  {% set t = player.totals %}
+  <p>
+    Seen in <strong>{{ t.games_seen }}</strong> {{ "game" if t.games_seen == 1 else "games" }}
+    {% if t.games_started %} · started {{ t.games_started }}{% endif %}
+    {% if t.games_started_pitching %} · started pitching {{ t.games_started_pitching }}{% endif %}
+  </p>
+  {% if t.ab or t.pa %}
+    <p class="slash">
+      {{ t.slash }}
+      · {{ t.h }}-{{ t.ab }}
+      {% if t.hr %} · {{ t.hr }} HR{% endif %}
+      {% if t.rbi %} · {{ t.rbi }} RBI{% endif %}
+    </p>
+  {% endif %}
+  {% if t.outs or t.games_started_pitching %}
+    <p>
+      {{ t.innings_pitched }} IP
+      · {{ t.er }} ER
+      · {{ t.so_pitched }} K
+      · {{ t.bb_allowed }} BB
+    </p>
+  {% endif %}
+
+  {% if player.games %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Game</th>
+          <th>Line</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for game in player.games %}
+          <tr>
+            <td>{{ game.official_date or game.date }}</td>
+            <td>
+              <a href="{{ url_for('game_detail', game_id=game.attended_id) }}">
+                {{ game.away_team }} {{ game.away_score }} @ {{ game.home_team }} {{ game.home_score }}
+              </a>
+            </td>
+            <td>
+              {% if game.ab or game.pa %}
+                {{ game.h or 0 }}-{{ game.ab or 0 }}
+                {% if game.hr %} · {{ game.hr }} HR{% endif %}
+                {% if game.rbi %} · {{ game.rbi }} RBI{% endif %}
+              {% endif %}
+              {% if game.started_pitching or game.outs %}
+                {% if game.ab or game.pa %} · {% endif %}
+                {{ format_innings_pitched(game.outs) }} IP
+                {% if game.pitching_decision %} {{ game.pitching_decision }}{% endif %}
+              {% endif %}
+              {% if game.started_game %}<span class="muted"> · lineup {{ game.batting_order }}</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No games in this view.</p>
+  {% endif %}
+{% endblock %}

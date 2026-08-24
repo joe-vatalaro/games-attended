@@ -43,6 +43,9 @@ def render_report_html(report: dict) -> str:
         ),
         _section("By year", _year_table(report["by_year"])),
         _section("Notable", _notable_list(report["notable"])),
+        _section("Most seen players", _player_seen_table(report["players"]["most_seen"])),
+        _section("Starting pitchers seen", _starter_table(report["players"]["starters"])),
+        _section("Home runs seen", _home_run_block(report["players"])),
     ]
     if report["unmatched"]:
         sections.append(
@@ -150,3 +153,47 @@ def _game_line(game: dict | None, field: str, unit: str) -> str:
     if not game:
         return "—"
     return f"{format_score(game)} ({game.get(field)} {unit})"
+
+
+def _player_seen_table(rows: list[dict]) -> str:
+    if not rows:
+        return "<p>No player lines yet. Run reparse over the cache.</p>"
+    cells = [
+        (
+            f"<tr><td>{row['player_name']}</td><td>{row['games_seen']}</td>"
+            f"<td>{row['games_started']}</td><td>{row['games_started_pitching']}</td>"
+            f"<td>{row['hr']}</td><td>{row['slash']}</td></tr>"
+        )
+        for row in rows
+    ]
+    return (
+        "<table><thead><tr><th>Player</th><th>Games</th><th>Started</th>"
+        "<th>SP</th><th>HR</th><th>Slash</th></tr></thead>"
+        f"<tbody>{''.join(cells)}</tbody></table>"
+    )
+
+
+def _starter_table(rows: list[dict]) -> str:
+    if not rows:
+        return "<p>No starting pitchers in this view.</p>"
+    cells = [
+        f"<tr><td>{row['player_name']}</td><td>{row['games_started_pitching']}</td></tr>"
+        for row in rows
+    ]
+    return (
+        "<table><thead><tr><th>Pitcher</th><th>Starts seen</th></tr></thead>"
+        f"<tbody>{''.join(cells)}</tbody></table>"
+    )
+
+
+def _home_run_block(players: dict) -> str:
+    count = players.get("home_run_count") or 0
+    if not count:
+        return "<p>No home runs in this view.</p>"
+    longest = players.get("longest_home_runs") or []
+    items = []
+    for event in longest:
+        distance = f" — {int(event['distance'])} ft" if event.get("distance") else ""
+        items.append(f"{event.get('batter_name')}: {event.get('description') or ''}{distance}")
+    extra = _simple_list(items, lambda item: item) if items else ""
+    return f"<p>{count} home runs seen.</p>{extra}"

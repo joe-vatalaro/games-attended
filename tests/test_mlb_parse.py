@@ -1,4 +1,12 @@
-from tracker.mlb import game_type_label, parse_game_details, parse_schedule_candidates, playoff_label, series_fields_from_schedule
+from tracker.mlb import (
+    game_type_label,
+    parse_game_details,
+    parse_game_events,
+    parse_player_game_stats,
+    parse_schedule_candidates,
+    playoff_label,
+    series_fields_from_schedule,
+)
 
 from tests.conftest import load_fixture
 
@@ -147,3 +155,47 @@ def test_walkoff_extra_innings_and_no_hitter_flags():
     assert details["is_extra_innings"] == 1
     assert details["is_no_hitter"] == 1
     assert details["winning_team_id"] == 111
+
+
+def test_parse_player_stats_and_home_run_event():
+    feed = load_fixture("feed_players_hr.json")
+    players = {row["player_id"]: row for row in parse_player_game_stats(feed)}
+    lukes = players[111111]
+    assert lukes["player_name"] == "Nathan Lukes"
+    assert lukes["side"] == "away"
+    assert lukes["batting_order"] == 1
+    assert lukes["started_game"] == 1
+    assert lukes["hr"] == 1
+    assert lukes["h"] == 2
+    assert lukes["ab"] == 4
+    pinch = players[111113]
+    assert pinch["started_game"] == 0
+    assert pinch["batting_order"] == 101
+    starter = players[222222]
+    assert starter["started_pitching"] == 1
+    assert starter["outs"] == 18
+    assert starter["pitching_decision"] == "W"
+    loser = players[333333]
+    assert loser["pitching_decision"] == "L"
+
+    events = parse_game_events(feed)
+    assert len(events) == 1
+    homer = events[0]
+    assert homer["event_type"] == "home_run"
+    assert homer["batter_name"] == "Nathan Lukes"
+    assert homer["inning"] == 3
+    assert homer["inning_half"] == "top"
+    assert homer["rbi"] == 2
+    assert "412" in (homer["extra_json"] or "")
+
+
+def test_player_parsers_tolerate_pitcher_only_feed():
+    feed = load_fixture("feed_746946.json")
+    players = parse_player_game_stats(feed)
+    by_name = {row["player_name"]: row for row in players}
+    assert by_name["Cooper Criswell"]["started_pitching"] == 1
+    assert by_name["Justin Slaten"]["started_pitching"] == 0
+    assert all(row["hr"] is None for row in players)
+    events = parse_game_events(feed)
+    assert [event["event_type"] for event in events] == ["home_run"]
+    assert "Juan Soto homers" in (events[0]["description"] or "")

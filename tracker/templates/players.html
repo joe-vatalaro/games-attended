@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Players{% endblock %}
+{% block body %}
+  <h2>Players</h2>
+  {% include "_type_filter.html" %}
+  {% if players %}
+    <table>
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Games seen</th>
+          <th>Started</th>
+          <th>SP</th>
+          <th>HR</th>
+          <th>H</th>
+          <th>AB</th>
+          <th>Slash</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in players %}
+          <tr>
+            <td><a href="{{ url_for('player_detail', player_id=row.player_id) }}">{{ row.player_name }}</a></td>
+            <td>{{ row.games_seen }}</td>
+            <td>{{ row.games_started }}</td>
+            <td>{{ row.games_started_pitching }}</td>
+            <td>{{ row.hr }}</td>
+            <td>{{ row.h }}</td>
+            <td>{{ row.ab }}</td>
+            <td class="slash">{{ row.slash }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No player lines in this view yet. Reparse cached games to fill them.</p>
+  {% endif %}
+{% endblock %}

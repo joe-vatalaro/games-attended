@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import asdict, dataclass, field
 from datetime import date as Date
+from pathlib import Path
 from typing import Any
 
 from tracker import db
@@ -12,9 +14,12 @@ from tracker.mlb import (
     MlbClient,
     MlbError,
     parse_game_details,
+    parse_game_events,
+    parse_player_game_stats,
     parse_schedule_candidates,
     series_fields_from_schedule,
 )
+from tracker.paths import CACHE_DIR
 from tracker.teams import Team, TeamResolution, resolve_team
 
 EMPTY_TEAM = TeamResolution(query="", matches=())
@@ -301,11 +306,44 @@ def enrich_game(
     if details.get("game_type") in POSTSEASON_TYPES:
         schedule = client.fetch_schedule(game_pk=game_pk)
         details.update(series_fields_from_schedule(schedule, game_pk))
-    db.upsert_game_details(conn, details)
+    apply_feed_tables(conn, feed, details)
     attended = db.get_attended_by_pk(conn, game_pk)
     if attended and details.get("venue_name") and not attended.get("venue"):
         db.update_attended_game(conn, attended["id"], {"venue": details["venue_name"]})
     return details
+
+
+def apply_feed_tables(conn, feed: dict[str, Any], details: dict[str, Any]) -> None:
+    game_pk = details["mlb_game_pk"]
+    db.upsert_game_details(conn, details)
+    db.replace_player_game_stats(conn, game_pk, parse_player_game_stats(feed))
+    db.replace_game_events(conn, game_pk, parse_game_events(feed))
+
+
+def reparse_cache(conn, cache_dir: Path | str | None = None) -> list[dict[str, Any]]:
+    cache = Path(cache_dir) if cache_dir else CACHE_DIR
+    results = []
+    if not cache.exists():
+        return results
+    for path in sorted(cache.glob("*.json")):
+        try:
+            game_pk = int(path.stem)
+        except ValueError:
+            continue
+        if not db.get_attended_by_pk(conn, game_pk):
+            continue
+        feed = json.loads(path.read_text())
+        details = parse_game_details(feed)
+        existing = db.get_game_details(conn, game_pk)
+        if existing:
+            if not details.get("series_description"):
+                details["series_description"] = existing.get("series_description")
+            if details.get("series_game_number") is None:
+                details["series_game_number"] = existing.get("series_game_number")
+            details["fetched_at"] = existing.get("fetched_at")
+        apply_feed_tables(conn, feed, details)
+        results.append({"game_pk": game_pk, "status": "reparsed"})
+    return results
 
 
 def enrich_all(

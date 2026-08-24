@@ -168,6 +168,8 @@ def test_delete_removes_attended_row_and_details(db_conn, tmp_path):
     assert deleted["mlb_game_pk"] == 746946
     assert db.get_attended_game(db_conn, game_id) is None
     assert db.get_game_details(db_conn, 746946) is None
+    assert db.list_player_game_stats(db_conn, 746946) == []
+    assert db.list_game_events(db_conn, 746946) == []
     assert db.delete_attended_game(db_conn, game_id) is None
 
 

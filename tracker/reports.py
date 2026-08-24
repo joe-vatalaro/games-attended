@@ -90,6 +90,7 @@ def build_report(
         "by_year": _by_year(confirmed),
         "notable": _notable(confirmed),
         "unmatched": unmatched,
+        "players": player_highlights(conn, selected),
     }
 
 
@@ -264,3 +265,268 @@ def format_record(wins: int, losses: int, ties: int = 0) -> str:
     if ties:
         return f"{wins}-{losses}-{ties}"
     return f"{wins}-{losses}"
+
+
+def format_avg(hits: int | None, at_bats: int | None) -> str:
+    if not at_bats:
+        return "—"
+    value = (hits or 0) / at_bats
+    formatted = f"{value:.3f}"
+    if formatted.startswith("0"):
+        return formatted[1:]
+    return formatted
+
+
+def format_slash(
+    hits: int | None = 0,
+    at_bats: int | None = 0,
+    walks: int | None = 0,
+    hbp: int | None = 0,
+    pa: int | None = 0,
+    doubles: int | None = 0,
+    triples: int | None = 0,
+    hr: int | None = 0,
+) -> str:
+    obp_denom = pa or ((at_bats or 0) + (walks or 0) + (hbp or 0))
+    total_bases = (hits or 0) + (doubles or 0) + 2 * (triples or 0) + 3 * (hr or 0)
+    return (
+        f"{format_avg(hits, at_bats)}/"
+        f"{format_avg((hits or 0) + (walks or 0) + (hbp or 0), obp_denom)}/"
+        f"{format_avg(total_bases, at_bats)}"
+    )
+
+
+def format_innings_pitched(outs: int | None) -> str:
+    if outs is None:
+        return "—"
+    return f"{outs // 3}.{outs % 3}"
+
+
+def event_hit_distance(event: dict[str, Any]) -> float | None:
+    raw = event.get("extra_json")
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return None
+    distance = data.get("totalDistance")
+    if distance is None or distance == "":
+        return None
+    return float(distance)
+
+
+def _type_filter_sql(type_groups: list[str] | tuple[str, ...] | None) -> tuple[str, list[Any]]:
+    selected = list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS)
+    allowed = allowed_game_types(selected)
+    include_other = "other" in selected
+    clauses: list[str] = []
+    params: list[Any] = []
+    if allowed:
+        placeholders = ", ".join("?" * len(allowed))
+        clauses.append(f"COALESCE(d.game_type, 'R') IN ({placeholders})")
+        params.extend(sorted(allowed))
+    if include_other:
+        grouped = sorted(GROUPED_GAME_TYPES)
+        placeholders = ", ".join("?" * len(grouped))
+        clauses.append(f"COALESCE(d.game_type, 'R') NOT IN ({placeholders})")
+        params.extend(grouped)
+    if not clauses:
+        return "1 = 0", []
+    return f"({' OR '.join(clauses)})", params
+
+
+def list_player_summaries(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT
+            p.player_id,
+            MAX(p.player_name) AS player_name,
+            COUNT(*) AS games_seen,
+            SUM(p.started_game) AS games_started,
+            SUM(p.started_pitching) AS games_started_pitching,
+            SUM(COALESCE(p.hr, 0)) AS hr,
+            SUM(COALESCE(p.h, 0)) AS h,
+            SUM(COALESCE(p.ab, 0)) AS ab,
+            SUM(COALESCE(p.pa, 0)) AS pa,
+            SUM(COALESCE(p.bb, 0)) AS bb,
+            SUM(COALESCE(p.hbp, 0)) AS hbp,
+            SUM(COALESCE(p.doubles, 0)) AS doubles,
+            SUM(COALESCE(p.triples, 0)) AS triples,
+            SUM(COALESCE(p.r, 0)) AS r,
+            SUM(COALESCE(p.rbi, 0)) AS rbi,
+            SUM(COALESCE(p.so, 0)) AS so,
+            SUM(COALESCE(p.sb, 0)) AS sb,
+            SUM(COALESCE(p.outs, 0)) AS outs,
+            SUM(COALESCE(p.h_allowed, 0)) AS h_allowed,
+            SUM(COALESCE(p.r_allowed, 0)) AS r_allowed,
+            SUM(COALESCE(p.er, 0)) AS er,
+            SUM(COALESCE(p.bb_allowed, 0)) AS bb_allowed,
+            SUM(COALESCE(p.so_pitched, 0)) AS so_pitched,
+            SUM(COALESCE(p.hr_allowed, 0)) AS hr_allowed
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where}
+        GROUP BY p.player_id
+        ORDER BY games_seen DESC, player_name
+        """,
+        params,
+    ).fetchall()
+    summaries = []
+    for row in rows:
+        item = dict(row)
+        item["slash"] = format_slash(
+            item["h"],
+            item["ab"],
+            item["bb"],
+            item["hbp"],
+            item["pa"],
+            item["doubles"],
+            item["triples"],
+            item["hr"],
+        )
+        item["innings_pitched"] = format_innings_pitched(item["outs"])
+        summaries.append(item)
+    return summaries
+
+
+def list_player_games(
+    conn,
+    player_id: int,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT p.*, a.id AS attended_id, a.date, a.home_team, a.away_team,
+               d.official_date, d.home_score, d.away_score, d.game_type,
+               d.series_description, d.series_game_number, d.venue_name
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE p.player_id = ? AND {where}
+        ORDER BY COALESCE(d.official_date, a.date) DESC, a.id DESC
+        """,
+        [player_id, *params],
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def player_page(
+    conn,
+    player_id: int,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any] | None:
+    from tracker import db
+
+    games = list_player_games(conn, player_id, type_groups)
+    name = games[0]["player_name"] if games else db.get_player_name(conn, player_id)
+    if name is None:
+        return None
+    totals = _sum_player_lines(games)
+    totals["player_id"] = player_id
+    totals["player_name"] = name
+    return {
+        "player_id": player_id,
+        "player_name": name,
+        "totals": totals,
+        "games": games,
+        "type_groups": list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS),
+    }
+
+
+def list_home_runs(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT e.*, a.id AS attended_id, a.home_team, a.away_team,
+               COALESCE(d.official_date, a.date) AS game_date, d.venue_name
+        FROM game_events e
+        JOIN attended_games a ON a.mlb_game_pk = e.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = e.mlb_game_pk
+        WHERE e.event_type = 'home_run' AND {where}
+        ORDER BY game_date DESC, e.at_bat_index
+        """,
+        params,
+    ).fetchall()
+    events = []
+    for row in rows:
+        item = dict(row)
+        item["distance"] = event_hit_distance(item)
+        events.append(item)
+    return events
+
+
+def player_highlights(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    summaries = list_player_summaries(conn, type_groups)
+    starters = sorted(
+        [row for row in summaries if row["games_started_pitching"]],
+        key=lambda row: (-row["games_started_pitching"], -row["games_seen"], row["player_name"]),
+    )
+    home_runs = list_home_runs(conn, type_groups)
+    longest = sorted(
+        [event for event in home_runs if event.get("distance") is not None],
+        key=lambda event: event["distance"],
+        reverse=True,
+    )
+    return {
+        "most_seen": summaries[:10],
+        "starters": starters[:15],
+        "home_runs": home_runs,
+        "home_run_count": len(home_runs),
+        "longest_home_runs": longest[:5],
+    }
+
+
+def _sum_player_lines(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    keys = (
+        "pa",
+        "ab",
+        "h",
+        "doubles",
+        "triples",
+        "hr",
+        "r",
+        "rbi",
+        "bb",
+        "so",
+        "sb",
+        "hbp",
+        "outs",
+        "h_allowed",
+        "r_allowed",
+        "er",
+        "bb_allowed",
+        "so_pitched",
+        "hr_allowed",
+    )
+    totals = {key: 0 for key in keys}
+    totals["games_seen"] = len(rows)
+    totals["games_started"] = sum(int(row.get("started_game") or 0) for row in rows)
+    totals["games_started_pitching"] = sum(int(row.get("started_pitching") or 0) for row in rows)
+    for row in rows:
+        for key in keys:
+            totals[key] += int(row.get(key) or 0)
+    totals["slash"] = format_slash(
+        totals["h"],
+        totals["ab"],
+        totals["bb"],
+        totals["hbp"],
+        totals["pa"],
+        totals["doubles"],
+        totals["triples"],
+        totals["hr"],
+    )
+    totals["innings_pitched"] = format_innings_pitched(totals["outs"] if totals["outs"] else None)
+    return totals

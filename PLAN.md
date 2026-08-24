@@ -129,13 +129,11 @@ Unique constraint: one attended row per `mlb_game_pk` when `mlb_game_pk` is not 
 | `status` | TEXT | persist only Final games |
 | `fetched_at` | TEXT | |
 
-### 5.3 Deferred tables (do not create in v1)
+### 5.3 Player tables (schema v3)
 
-- `game_events` — HRs, walk-off play, etc. Keyed by `mlb_game_pk`.
-- `companions` — structured “who I went with.”
-- `rooting_for` — optional favorite / per-game rooting team.
+`player_game_stats` and `game_events` are in §16. They are official facts keyed by `mlb_game_pk`.
 
-v1 reports that need “notable games” use the boolean flags on `game_details`.
+Still deferred: `companions`, `rooting_for`.
 
 ### 5.4 Checked-in reference files
 
@@ -350,8 +348,9 @@ The original build order (schema → aliases → resolve/parse → confirm → F
 - Edit notes on the game page (`?edit=notes`); seats stay add-time / personal-only for now.
 - Playoff series labels and Spring Training labels on confirm + game page.
 - Report game-type filter, default regular + playoffs.
+- Player lines and home-run events from cached feeds (`reparse`, `/players`, game-page lineups).
 
-Do not start with `game_events`, charts, or a public bind address.
+Do not start with charts or a public bind address.
 
 ---
 
@@ -370,18 +369,14 @@ Do not start with `game_events`, charts, or a public bind address.
 
 Each item names the hook that already exists so we do not rewrite the core. Notes edit, playoff/spring labels, and the report type filter are already in v1; they are called out where they used to be “later.”
 
-### 12.1 Game events (home runs, final play, walk-off description)
+### 12.1 Player lines and game events
 
-- New table `game_events(id, mlb_game_pk, event_type, inning, inning_half, player_id, player_name, description, extra_json)`.
-- Parser reads `data/cache/{game_pk}.json` (or re-fetches with `--force`).
-- UI: a section on `/games/<id>`. Report: “home runs I’ve seen.”
-- Walk-off flag already on `game_details`; this adds the batter and the play string.
+See **§16**. This is the next slice now that ~50 games are logged and cached.
 
 ### 12.2 Statcast / pitch-level detail
 
-- Add `pybaseball` (or raw Baseball Savant) keyed by `mlb_game_pk` + player id.
-- New table or columns on `game_events` (`launch_speed`, `hit_distance`, etc.).
-- Do not pull this into the v1 dependency list.
+- Live feeds already include `hitData` on many balls in play (`launchSpeed`, `launchAngle`, `totalDistance`). Store that on `game_events.extra_json` in §16 — no new dependency.
+- `pybaseball` / Baseball Savant stays optional later for pitch-by-pitch or missing Statcast on older games.
 
 ### 12.3 MiLB (and other sports)
 
@@ -442,7 +437,7 @@ Each item names the hook that already exists so we do not rewrite the core. Note
 5. Park progress uses `venue_id` against a 30-park reference file.
 6. One HTTP client (`mlb.py`), one enrich path, raw JSON cached.
 7. Flask on localhost; CLI for batch and report snapshots.
-8. `game_events` and pandas wait.
+8. Pandas waits. Player lines and `game_events` are the v2 slice (§16).
 9. Report default is regular season + playoffs; spring / other are opt-in.
 
 ## 14. Settled in implementation
@@ -450,10 +445,115 @@ Each item names the hook that already exists so we do not rewrite the core. Note
 - Flask defaults to `127.0.0.1:5000`. `serve --no-browser` skips opening a tab.
 - Team aliases live in `data/team_aliases.json`. `Chicago` / `Sox` / `LA` / `NY` stay ambiguous.
 - Personal-only save is on the no-match confirm screen and needs a **full date** plus both teams (a year is not enough).
-- Schema version is `2` (`series_description`, `series_game_number` added to existing DBs on connect).
+- Schema version is `3` (`player_game_stats`, `game_events`; v2 series columns still migrate on older DBs).
 
 ---
 
 ## 15. Suggested next slice
 
-Pick from §12: seats edit, rooting-for, companions, CSV import, or `game_events`. Do not reopen the add/confirm path unless a real lookup is wrong.
+Seats edit, rooting-for, companions, and CSV import can wait. Optional next player work: more `game_events` types (walk-off, triple) and multi-HR games on the report. Do not reopen the add/confirm path unless a real lookup is wrong.
+
+---
+
+## 16. Player data (v2)
+
+Goal: answer “who have I seen?”, “how many times has X started in front of me?”, “home runs I’ve witnessed”, and “what did Judge do in games I attended?” without a new HTTP client. Official player facts stay keyed by `mlb_game_pk` + MLB `player_id`. Personal “I was there” stays on `attended_games`.
+
+As of this writing: 50 confirmed attended games, all with cached `data/cache/{game_pk}.json`. Those feeds already have full boxscore batting/pitching lines, batting-order lists, `allPlays` (including home runs with batter/pitcher/description), and often `hitData` (exit velo, angle, distance). Fixture JSON in tests is a slim subset — parsers must tolerate missing batting stats.
+
+### 16.1 What we will not do in this slice
+
+- Live player search against MLB while adding a game.
+- Season-long MLB stats (only stats in games you attended).
+- Pitch-by-pitch or Statcast beyond what the cached feed already has.
+- Rooting-for / “my guy” (that is still §12.4).
+- pandas.
+
+### 16.2 Tables (schema v3)
+
+`player_game_stats` — one row per player who appeared in a logged official game.
+
+| Column | Notes |
+|---|---|
+| `mlb_game_pk`, `player_id` | composite PK |
+| `player_name` | display name at parse time |
+| `team_id`, `side` | `home` / `away` |
+| `batting_order` | 1–9 starter, or 100+ for PH as MLB encodes it; null if pitcher-only |
+| `started_game` | in the 9-man batting order |
+| `started_pitching` | `gamesStarted` on the pitching line |
+| batting ints | `pa`, `ab`, `h`, `doubles`, `triples`, `hr`, `r`, `rbi`, `bb`, `so`, `sb`, `hbp` |
+| pitching ints | `outs` (prefer this over IP string), `h_allowed`, `r_allowed`, `er`, `bb_allowed`, `so_pitched`, `hr_allowed` |
+| `pitching_decision` | `W` / `L` / `S` / `H` / null |
+
+`game_events` — notable plays, not every PA.
+
+| Column | Notes |
+|---|---|
+| `id` | PK |
+| `mlb_game_pk`, `at_bat_index` | unique per play we store |
+| `event_type` | first: `home_run`; next: `walk_off`, `triple`, `stolen_base` |
+| `inning`, `inning_half` | `top` / `bottom` |
+| `batter_id`, `batter_name`, `pitcher_id`, `pitcher_name` | |
+| `description` | MLB play string |
+| `rbi` | |
+| `extra_json` | `hitData` when present |
+
+No separate `players` table in v2. Name lives on the stat/event row. If a name changes, the next reparse updates it.
+
+Delete of an attended game already removes `game_details`. Cascade-delete (or explicit delete) `player_game_stats` and `game_events` for that `mlb_game_pk` too.
+
+### 16.3 Parse path
+
+- New functions in `tracker/mlb.py`: `parse_player_game_stats(feed)`, `parse_game_events(feed)`.
+- `tracker/enrich.py`: after `parse_game_details`, write the two tables. Same skip/`--force` as today.
+- `python -m tracker reparse` walks `data/cache/*.json` and upserts `game_details`, `player_game_stats`, and `game_events` **without** hitting MLB. This is how the existing 50 games get player data on day one.
+- Refresh from MLB still fetches the feed, then the same parsers run.
+- Tests: expand one fixture (or add a second) that includes a batter line and a home-run play. Do not use the live API in CI.
+
+### 16.4 Reports and UI (same game-type filter as `/report`)
+
+Default view: regular season + playoffs, same `?type=` groups.
+
+**Game page** (`/games/<id>`)
+
+- Starting lineups (batting order 1–9) and starting pitchers (already have names on `game_details`; now they link to a player).
+- Home runs in this game: “Nathan Lukes homers (8)…” with inning.
+
+**Players**
+
+- `/players` — table: name, games seen, games started (batter), games started (pitcher), HR seen, hits, AB (slash optional). Sort by games seen.
+- `/players/<player_id>` — slash line and pitching line **only in games you attended**, plus the list of those games (date, matchup, that day’s line).
+
+**Report additions** (can live on `/report` or the players index)
+
+- Most seen players.
+- Starting pitchers I’ve seen (count of `started_pitching`).
+- Home runs I’ve seen (count + a short list of the longest if `hitData` exists).
+- Multi-HR games / walk-off HR (once `walk_off` events exist).
+
+### 16.5 Cool things that fall out for free
+
+Once the two tables exist, these are queries, not new parsers:
+
+- “How many times have I seen Aaron Judge?”
+- Judge’s AVG/OBP/SLG in my games.
+- “Have I ever seen a no-hitter start?” (already have `is_no_hitter`; now we know who).
+- Longest homer I’ve seen (max `totalDistance` in `extra_json`).
+- Players I’ve seen with both teams (same `player_id`, different `team_id`).
+- Every starter at a given park.
+
+### 16.6 Build order
+
+1. Schema v3 + parsers + fixture tests + `reparse` over the local cache. **Done.**
+2. Game page: lineups + HRs for one known game. **Done.**
+3. `/players` and `/players/<id>` with the report type filter. **Done.**
+4. Report blocks: most seen, starters seen, HRs seen. **Done.**
+5. Optional second event types (`walk_off` is stored when a play is a walk-off and not already a HR).
+
+### 16.7 Decisions locked for v2
+
+1. Cache-first. Reparse the 50 feeds before any new MLB calls.
+2. Two tables: per-game player lines, plus a small events table for HRs (and later walk-offs).
+3. Same game-type filter as the current report.
+4. Player identity is MLB `player_id`.
+5. No Statcast client until the feed’s own `hitData` is stored and used.
