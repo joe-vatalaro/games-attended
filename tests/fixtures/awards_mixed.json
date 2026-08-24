@@ -1,0 +1,22 @@
+{
+  "awards": [
+    {
+      "id": "ALMVP",
+      "name": "AL MVP",
+      "season": "2024",
+      "player": {"id": 444444, "nameFirstLast": "Aaron Judge"}
+    },
+    {
+      "id": "ALMVP",
+      "name": "AL MVP",
+      "season": "2022",
+      "player": {"id": 444444, "nameFirstLast": "Aaron Judge"}
+    },
+    {
+      "id": "MLBHOF",
+      "name": "Hall Of Fame",
+      "season": "2025",
+      "player": {"id": 111111, "nameFirstLast": "Nathan Lukes"}
+    }
+  ]
+}

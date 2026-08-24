@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.paths import DB_PATH, ensure_data_dirs
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS attended_games (
@@ -113,6 +113,15 @@ CREATE TABLE IF NOT EXISTS game_events (
     extra_json TEXT,
     UNIQUE (mlb_game_pk, at_bat_index)
 );
+
+CREATE TABLE IF NOT EXISTS player_honors (
+    player_id INTEGER NOT NULL,
+    honor_type TEXT NOT NULL,
+    award_id TEXT NOT NULL,
+    season INTEGER NOT NULL,
+    player_name TEXT,
+    PRIMARY KEY (player_id, honor_type, award_id, season)
+);
 """
 
 
@@ -193,6 +202,20 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             """
         )
         conn.execute("PRAGMA user_version = 3")
+    if current < 4:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS player_honors (
+                player_id INTEGER NOT NULL,
+                honor_type TEXT NOT NULL,
+                award_id TEXT NOT NULL,
+                season INTEGER NOT NULL,
+                player_name TEXT,
+                PRIMARY KEY (player_id, honor_type, award_id, season)
+            );
+            """
+        )
+        conn.execute("PRAGMA user_version = 4")
     conn.commit()
 
 
@@ -502,6 +525,50 @@ def list_game_events(
         params.append(event_type)
     sql += " ORDER BY at_bat_index"
     return [row_to_dict(row) for row in conn.execute(sql, params).fetchall()]
+
+
+def replace_player_honors(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> None:
+    conn.execute("DELETE FROM player_honors")
+    columns = ["player_id", "honor_type", "award_id", "season", "player_name"]
+    placeholders = ", ".join(f":{column}" for column in columns)
+    for row in rows:
+        conn.execute(
+            f"""
+            INSERT INTO player_honors ({', '.join(columns)})
+            VALUES ({placeholders})
+            """,
+            {column: row.get(column) for column in columns},
+        )
+    conn.commit()
+
+
+def list_player_honors(conn: sqlite3.Connection, player_id: int) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT honor_type, award_id, season, player_name
+        FROM player_honors
+        WHERE player_id = ?
+        ORDER BY honor_type, season
+        """,
+        (player_id,),
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def list_all_player_honors(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT DISTINCT player_id, honor_type
+        FROM player_honors
+        ORDER BY player_id, honor_type
+        """
+    ).fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def honors_loaded(conn: sqlite3.Connection) -> bool:
+    row = conn.execute("SELECT 1 FROM player_honors LIMIT 1").fetchone()
+    return row is not None
 
 
 def get_player_name(conn: sqlite3.Connection, player_id: int) -> str | None:

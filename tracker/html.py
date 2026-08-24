@@ -43,6 +43,7 @@ def render_report_html(report: dict) -> str:
             ),
         ),
         _section("By year", _year_table(report["by_year"])),
+        _section("Honors seen", _honors_html(report["honors"])),
         _section("Notable", _notable_list(report["notable"])),
         _section("Most seen players", _player_seen_table(report["players"]["most_seen"])),
         _section("Starting pitchers seen", _starter_table(report["players"]["starters"])),
@@ -99,6 +100,19 @@ def _teams_html(teams: dict) -> str:
         f"<h3>Seen</h3>{seen}"
         f"<h3>Still need to see</h3>{remaining}"
     )
+
+
+def _honors_html(honors: dict) -> str:
+    if not honors.get("loaded"):
+        return "<p>No honors loaded yet. Run <code>python -m tracker honors</code>.</p>"
+    blocks = []
+    for group in honors.get("groups") or []:
+        names = _simple_list(
+            group["players"],
+            lambda player: f"{player['player_name']} ({player['games_seen']})",
+        )
+        blocks.append(f"<h3>{group['label']} ({group['count']})</h3>{names}")
+    return "".join(blocks) if blocks else "<p>None in this view.</p>"
 
 
 def _section(title: str, inner: str) -> str:

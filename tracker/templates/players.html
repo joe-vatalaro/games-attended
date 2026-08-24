@@ -20,7 +20,16 @@
       <tbody>
         {% for row in players %}
           <tr>
-            <td><a href="{{ url_for('player_detail', player_id=row.player_id) }}">{{ row.player_name }}</a></td>
+            <td>
+              <a href="{{ url_for('player_detail', player_id=row.player_id) }}">{{ row.player_name }}</a>
+              {% if row.honors %}
+                <div class="honor-row">
+                  {% for honor in row.honors %}
+                    <span class="honor {{ honor.honor_type }}">{{ honor.label }}</span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </td>
             <td>{{ row.games_seen }}</td>
             <td>{{ row.games_started }}</td>
             <td>{{ row.games_started_pitching }}</td>

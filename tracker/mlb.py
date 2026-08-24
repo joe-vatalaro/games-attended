@@ -26,6 +26,42 @@ GAME_TYPE_LABELS = {
     "A": "All-Star Game",
 }
 
+HONOR_AWARD_IDS = {
+    "MLBHOF": "hof",
+    "ALMVP": "mvp",
+    "NLMVP": "mvp",
+    "ALCY": "cy_young",
+    "NLCY": "cy_young",
+    "MLBCY": "cy_young",
+    "ALROY": "roy",
+    "NLROY": "roy",
+    "MLBROY": "roy",
+    "WSMVP": "ws_mvp",
+    "ALHAA": "hank_aaron",
+    "NLHAA": "hank_aaron",
+    "ALREL": "reliever",
+    "NLREL": "reliever",
+}
+HONOR_ORDER = ("hof", "mvp", "cy_young", "roy", "ws_mvp", "hank_aaron", "reliever")
+HONOR_LABELS = {
+    "hof": "Hall of Fame",
+    "mvp": "MVP",
+    "cy_young": "Cy Young",
+    "roy": "Rookie of the Year",
+    "ws_mvp": "World Series MVP",
+    "hank_aaron": "Hank Aaron Award",
+    "reliever": "Reliever of the Year",
+}
+HONOR_SHORT_LABELS = {
+    "hof": "HOF",
+    "mvp": "MVP",
+    "cy_young": "CY",
+    "roy": "ROY",
+    "ws_mvp": "WS MVP",
+    "hank_aaron": "Aaron",
+    "reliever": "Reliever",
+}
+
 
 class MlbError(Exception):
     pass
@@ -132,6 +168,18 @@ class MlbClient:
         ensure_data_dirs()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path(game_pk).write_text(json.dumps(payload))
+
+    def awards_cache_path(self, award_id: str) -> Path:
+        return self.cache_dir / "awards" / f"{award_id}.json"
+
+    def fetch_award_recipients(self, award_id: str, force: bool = False) -> dict[str, Any]:
+        cached = self.awards_cache_path(award_id)
+        if cached.exists() and not force:
+            return json.loads(cached.read_text())
+        payload = self.get_json(f"{MLB_BASE}/api/v1/awards/{award_id}/recipients")
+        cached.parent.mkdir(parents=True, exist_ok=True)
+        cached.write_text(json.dumps(payload))
+        return payload
 
 
 def playoff_label(
@@ -502,3 +550,27 @@ def _is_walkoff(
         return False
     last = scoring[-1].get("about") or {}
     return last.get("halfInning") == "bottom" and int(last.get("inning") or 0) >= 9
+
+
+def parse_award_recipients(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for item in payload.get("awards") or []:
+        award_id = item.get("id")
+        honor_type = HONOR_AWARD_IDS.get(award_id)
+        if not honor_type:
+            continue
+        player = item.get("player") or {}
+        player_id = _maybe_int(player.get("id"))
+        season = _maybe_int(item.get("season"))
+        if player_id is None or season is None:
+            continue
+        rows.append(
+            {
+                "player_id": player_id,
+                "honor_type": honor_type,
+                "award_id": award_id,
+                "season": season,
+                "player_name": player.get("nameFirstLast") or player.get("fullName"),
+            }
+        )
+    return rows

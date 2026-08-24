@@ -5,7 +5,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from tracker.mlb import OTHER_GAME_TYPES, POSTSEASON_TYPES, SPRING_TYPES
+from tracker.mlb import (
+    HONOR_LABELS,
+    HONOR_ORDER,
+    HONOR_SHORT_LABELS,
+    OTHER_GAME_TYPES,
+    POSTSEASON_TYPES,
+    SPRING_TYPES,
+)
 from tracker.paths import PARKS_PATH
 from tracker.teams import all_teams, team_by_id
 
@@ -92,6 +99,7 @@ def build_report(
         "notable": _notable(confirmed),
         "unmatched": unmatched,
         "players": player_highlights(conn, selected),
+        "honors": seen_honors(conn, selected),
     }
 
 
@@ -431,6 +439,9 @@ def list_player_summaries(
         )
         item["innings_pitched"] = format_innings_pitched(item["outs"])
         summaries.append(item)
+    honor_map = honor_types_by_player(conn)
+    for item in summaries:
+        item["honors"] = honor_map.get(item["player_id"], [])
     return summaries
 
 
@@ -475,6 +486,7 @@ def player_page(
         "player_name": name,
         "totals": totals,
         "games": games,
+        "honors": honors_for_player(conn, player_id),
         "type_groups": list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS),
     }
 
@@ -526,6 +538,82 @@ def player_highlights(
         "home_run_count": len(home_runs),
         "longest_home_runs": longest[:5],
     }
+
+
+def honor_types_by_player(conn) -> dict[int, list[dict[str, str]]]:
+    from tracker import db
+
+    grouped: dict[int, list[str]] = defaultdict(list)
+    for row in db.list_all_player_honors(conn):
+        honor_type = row["honor_type"]
+        if honor_type not in grouped[row["player_id"]]:
+            grouped[row["player_id"]].append(honor_type)
+    result: dict[int, list[dict[str, str]]] = {}
+    for player_id, types in grouped.items():
+        ordered = [honor for honor in HONOR_ORDER if honor in types]
+        result[player_id] = [
+            {"honor_type": honor, "label": HONOR_SHORT_LABELS[honor]}
+            for honor in ordered
+        ]
+    return result
+
+
+def honors_for_player(conn, player_id: int) -> list[dict[str, Any]]:
+    from tracker import db
+
+    grouped: dict[str, list[int]] = defaultdict(list)
+    for row in db.list_player_honors(conn, player_id):
+        grouped[row["honor_type"]].append(row["season"])
+    honors = []
+    for honor_type in HONOR_ORDER:
+        seasons = sorted(set(grouped.get(honor_type) or []))
+        if not seasons:
+            continue
+        honors.append(
+            {
+                "honor_type": honor_type,
+                "label": HONOR_LABELS[honor_type],
+                "seasons": seasons,
+            }
+        )
+    return honors
+
+
+def seen_honors(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    from tracker import db
+
+    where, params = _type_filter_sql(type_groups)
+    loaded = db.honors_loaded(conn)
+    groups = []
+    for honor_type in HONOR_ORDER:
+        rows = conn.execute(
+            f"""
+            SELECT p.player_id,
+                   MAX(p.player_name) AS player_name,
+                   COUNT(DISTINCT p.mlb_game_pk) AS games_seen
+            FROM player_honors h
+            JOIN player_game_stats p ON p.player_id = h.player_id
+            JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+            JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+            WHERE h.honor_type = ? AND {where}
+            GROUP BY p.player_id
+            ORDER BY games_seen DESC, player_name
+            """,
+            [honor_type, *params],
+        ).fetchall()
+        players = [dict(row) for row in rows]
+        groups.append(
+            {
+                "honor_type": honor_type,
+                "label": HONOR_LABELS[honor_type],
+                "count": len(players),
+                "players": players,
+            }
+        )
+    return {"loaded": loaded, "groups": groups}
 
 
 def _sum_player_lines(rows: list[dict[str, Any]]) -> dict[str, Any]:

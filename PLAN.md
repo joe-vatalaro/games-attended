@@ -445,13 +445,13 @@ See **§16**. This is the next slice now that ~50 games are logged and cached.
 - Flask defaults to `127.0.0.1:5000`. `serve --no-browser` skips opening a tab.
 - Team aliases live in `data/team_aliases.json`. `Chicago` / `Sox` / `LA` / `NY` stay ambiguous.
 - Personal-only save is on the no-match confirm screen and needs a **full date** plus both teams (a year is not enough).
-- Schema version is `3` (`player_game_stats`, `game_events`; v2 series columns still migrate on older DBs).
+- Schema version is `4` (`player_honors` for HOF / MVP / Cy Young / ROY / WS MVP / Hank Aaron / Reliever of the Year).
 
 ---
 
 ## 15. Suggested next slice
 
-Seats edit, rooting-for, companions, and CSV import can wait. Optional next player work: more `game_events` types (walk-off, triple) and multi-HR games on the report. Do not reopen the add/confirm path unless a real lookup is wrong.
+Seats edit, rooting-for, companions, and CSV import can wait. Refresh honors after awards season with `python -m tracker honors --force`. Do not reopen the add/confirm path unless a real lookup is wrong.
 
 ---
 

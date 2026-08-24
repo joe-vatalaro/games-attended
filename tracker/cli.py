@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from tracker import db
-from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_all, reparse_cache, resolve_add
+from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_all, reparse_cache, resolve_add, refresh_honors
 from tracker.html import render_report_html
 from tracker.mlb import MlbClient
 from tracker.paths import DB_PATH
@@ -37,6 +37,9 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("reparse", help="Rebuild official tables from cached feeds.")
 
+    honors = sub.add_parser("honors", help="Fetch Hall of Fame and major award winners from MLB.")
+    honors.add_argument("--force", action="store_true")
+
     report = sub.add_parser("report", help="Print reports.")
     report.add_argument("--html", nargs="?", const="report.html")
 
@@ -64,6 +67,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_enrich(conn, args)
         if args.command == "reparse":
             return _cmd_reparse(conn)
+        if args.command == "honors":
+            return _cmd_honors(conn, args)
         if args.command == "report":
             return _cmd_report(conn, args)
     finally:
@@ -161,6 +166,16 @@ def _cmd_reparse(conn) -> int:
     return 0
 
 
+def _cmd_honors(conn, args) -> int:
+    fetched = refresh_honors(conn, client=MlbClient(), force=args.force)
+    total = conn.execute("SELECT COUNT(DISTINCT player_id) FROM player_honors").fetchone()[0]
+    print("Loaded honors from MLB:")
+    for award_id, count in fetched.items():
+        print(f"  {award_id}: {count} recipients")
+    print(f"Distinct honored players: {total}")
+    return 0
+
+
 def _cmd_report(conn, args) -> int:
     report = build_report(conn)
     if args.html:
@@ -199,6 +214,13 @@ def _cmd_report(conn, args) -> int:
     print("\nBy year:")
     for row in report["by_year"]:
         print(f"  {row['year']}: {row['games']} games, {format_record(row['wins'], row['losses'], row['ties'])}")
+    honors = report["honors"]
+    if honors["loaded"]:
+        print("\nHonors seen:")
+        for group in honors["groups"]:
+            names = ", ".join(player["player_name"] for player in group["players"][:8]) or "none"
+            extra = "…" if len(group["players"]) > 8 else ""
+            print(f"  {group['label']}: {group['count']} — {names}{extra}")
     if report["notable"]:
         print("\nNotable:")
         for game in report["notable"]:

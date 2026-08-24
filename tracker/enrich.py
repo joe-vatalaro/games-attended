@@ -9,10 +9,12 @@ from typing import Any
 
 from tracker import db
 from tracker.mlb import (
+    HONOR_AWARD_IDS,
     POSTSEASON_TYPES,
     Candidate,
     MlbClient,
     MlbError,
+    parse_award_recipients,
     parse_game_details,
     parse_game_events,
     parse_player_game_stats,
@@ -344,6 +346,24 @@ def reparse_cache(conn, cache_dir: Path | str | None = None) -> list[dict[str, A
         apply_feed_tables(conn, feed, details)
         results.append({"game_pk": game_pk, "status": "reparsed"})
     return results
+
+
+def refresh_honors(
+    conn,
+    *,
+    client: MlbClient | None = None,
+    force: bool = False,
+) -> dict[str, int]:
+    client = client or MlbClient()
+    rows = []
+    fetched: dict[str, int] = {}
+    for award_id in HONOR_AWARD_IDS:
+        payload = client.fetch_award_recipients(award_id, force=force)
+        parsed = parse_award_recipients(payload)
+        fetched[award_id] = len(parsed)
+        rows.extend(parsed)
+    db.replace_player_honors(conn, rows)
+    return fetched
 
 
 def enrich_all(

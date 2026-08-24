@@ -2,6 +2,13 @@
 {% block title %}{{ player.player_name }}{% endblock %}
 {% block body %}
   <h2>{{ player.player_name }}</h2>
+  {% if player.honors %}
+    <p>
+      {% for honor in player.honors %}
+        <span class="honor {{ honor.honor_type }}">{{ honor.label }}{% if honor.seasons %} {{ honor.seasons | join(", ") }}{% endif %}</span>
+      {% endfor %}
+    </p>
+  {% endif %}
   {% include "_type_filter.html" %}
   {% set t = player.totals %}
   <p>

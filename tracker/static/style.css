@@ -237,7 +237,25 @@ td a { display: block; }
 .home-runs { margin: 0; padding-left: 1.15rem; }
 .home-runs li { margin-bottom: 0.65rem; }
 
-.slash { font-variant-numeric: tabular-nums; }
+.honor-row { margin-top: 0.2rem; }
+
+.honor {
+  display: inline-block;
+  font-size: 0.72rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: #e7e0d6;
+  color: var(--ink);
+  margin: 0 0.2rem 0.2rem 0;
+}
+
+.honor.hof { background: #fde68a; color: #78350f; }
+.honor.mvp { background: #dbeafe; color: #1e3a5f; }
+.honor.cy_young { background: #dcfce7; color: #166534; }
+.honor.roy { background: #fae8ff; color: #6b21a8; }
+.honor.ws_mvp { background: #ffe4e6; color: #9f1239; }
+.honor.hank_aaron { background: #ffedd5; color: #9a3412; }
+.honor.reliever { background: #e0e7ff; color: #3730a3; }
 
 @media (max-width: 640px) {
   .row-2, .row-3, .lineups { grid-template-columns: 1fr; }
