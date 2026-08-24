@@ -178,6 +178,14 @@ def _cmd_report(conn, args) -> int:
     print(f"\nParks: {stadiums['visited_count']} / {stadiums['current_park_count']}")
     for park in stadiums["visited"]:
         print(f"  visited {park['name']}")
+    teams = report["teams"]
+    print(f"\nTeams: {teams['seen_count']} / {teams['current_team_count']}")
+    for team in teams["seen"]:
+        print(f"  seen {team['name']}")
+    if teams["remaining"]:
+        print("Still need to see:")
+        for team in teams["remaining"]:
+            print(f"  {team['name']}")
     longest = report["longest_shortest"]
     if longest["longest_duration"]:
         print(f"\nLongest: {format_score(longest['longest_duration'])} ({longest['longest_duration']['duration_minutes']} min)")

@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.mlb import OTHER_GAME_TYPES, POSTSEASON_TYPES, SPRING_TYPES
 from tracker.paths import PARKS_PATH
-from tracker.teams import team_by_id
+from tracker.teams import all_teams, team_by_id
 
 REPORT_TYPE_GROUPS = {
     "regular": frozenset({"R"}),
@@ -84,6 +84,7 @@ def build_report(
         },
         "overall": _overall_record(confirmed),
         "by_team": _record_by_team(confirmed),
+        "teams": _teams_checklist(confirmed),
         "longest_shortest": _longest_shortest(confirmed),
         "stadiums": _stadiums(confirmed, parks_path),
         "attendance": _attendance(confirmed),
@@ -169,6 +170,44 @@ def _record_by_team(games: list[dict[str, Any]]) -> list[dict[str, Any]]:
         )
     rows.sort(key=lambda row: (-row["seen"], row["team"]))
     return rows
+
+
+def _teams_checklist(games: list[dict[str, Any]]) -> dict[str, Any]:
+    catalog = all_teams()
+    seen_ids: set[int] = set()
+    for game in games:
+        for key in ("home_team_id", "away_team_id"):
+            team_id = game.get(key)
+            if team_id:
+                seen_ids.add(team_id)
+    seen = []
+    for team in catalog:
+        if team.id not in seen_ids:
+            continue
+        seen.append(
+            {
+                "team_id": team.id,
+                "name": team.name,
+                "games": sum(
+                    1
+                    for game in games
+                    if game.get("home_team_id") == team.id or game.get("away_team_id") == team.id
+                ),
+            }
+        )
+    seen.sort(key=lambda row: row["name"])
+    remaining = [
+        {"team_id": team.id, "name": team.name}
+        for team in catalog
+        if team.id not in seen_ids
+    ]
+    remaining.sort(key=lambda row: row["name"])
+    return {
+        "seen_count": len(seen),
+        "current_team_count": len(catalog),
+        "seen": seen,
+        "remaining": remaining,
+    }
 
 
 def _longest_shortest(games: list[dict[str, Any]]) -> dict[str, Any]:

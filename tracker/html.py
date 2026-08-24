@@ -17,6 +17,7 @@ def render_report_html(report: dict) -> str:
             f"({overall['games']} confirmed of {report['totals']['attended']} logged)</p>",
         ),
         _section("By team seen", _team_table(report["by_team"])),
+        _section("Teams", _teams_html(report["teams"])),
         _section(
             "Longest and shortest",
             _kv_table(
@@ -87,6 +88,16 @@ def _stadiums_html(stadiums: dict) -> str:
         f"<p>Visited {stadiums['visited_count']} of {stadiums['current_park_count']} current MLB parks.</p>"
         f"<h3>Visited</h3>{visited}"
         f"<h3>Still need to visit</h3>{remaining}"
+    )
+
+
+def _teams_html(teams: dict) -> str:
+    seen = _simple_list(teams["seen"], lambda team: f"{team['name']} ({team['games']})")
+    remaining = _simple_list(teams["remaining"], lambda team: team["name"])
+    return (
+        f"<p>Seen {teams['seen_count']} of {teams['current_team_count']} current MLB teams.</p>"
+        f"<h3>Seen</h3>{seen}"
+        f"<h3>Still need to see</h3>{remaining}"
     )
 
 

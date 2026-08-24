@@ -94,6 +94,14 @@ def test_report_record_parks_and_unmatched(db_conn):
     assert 3313 not in remaining_ids
     assert report["stadiums"]["current_park_count"] == 30
 
+    seen_ids = {team["team_id"] for team in report["teams"]["seen"]}
+    assert seen_ids == {111, 147}
+    remaining_team_ids = {team["team_id"] for team in report["teams"]["remaining"]}
+    assert 111 not in remaining_team_ids
+    assert 147 not in remaining_team_ids
+    assert report["teams"]["current_team_count"] == 30
+    assert report["teams"]["seen_count"] == 2
+
     assert report["longest_shortest"]["longest_duration"]["duration_minutes"] == 210
     assert report["longest_shortest"]["shortest_duration"]["duration_minutes"] == 188
     assert report["attendance"]["highest"]["attendance"] == 48000
