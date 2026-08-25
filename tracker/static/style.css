@@ -257,6 +257,40 @@ td a { display: block; }
 .honor.hank_aaron { background: #ffedd5; color: #9a3412; }
 .honor.reliever { background: #e0e7ff; color: #3730a3; }
 
+.report-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem;
+  margin: 0 0 1rem;
+  padding: 0.35rem 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+
+.report-tabs [role="tab"] {
+  font: inherit;
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.55rem 0.8rem 0.45rem;
+}
+
+.report-tabs [role="tab"]:hover {
+  color: var(--ink);
+}
+
+.report-tabs [role="tab"][aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--navy);
+}
+
+.report-panel[hidden] { display: none; }
+
 @media (max-width: 640px) {
   .row-2, .row-3, .lineups { grid-template-columns: 1fr; }
   header.site { flex-direction: column; align-items: flex-start; }

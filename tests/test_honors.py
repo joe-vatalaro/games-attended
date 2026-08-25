@@ -96,3 +96,7 @@ def test_honors_appear_on_players_and_report_pages(db_conn, tmp_path):
     assert "2024" in detail
     assert "Honors seen" in report
     assert "Aaron Judge" in report
+    assert 'data-report-tabs' in report
+    assert 'data-tab="honors"' in report
+    assert "Teams & parks" in report
+    assert "report.js" in report
