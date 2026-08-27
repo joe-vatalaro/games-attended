@@ -349,6 +349,170 @@ def format_innings_pitched(outs: int | None) -> str:
     return f"{outs // 3}.{outs % 3}"
 
 
+def format_rate(value: float | None, digits: int = 3, *, leading_zero: bool = False) -> str:
+    if value is None:
+        return "—"
+    formatted = f"{value:.{digits}f}"
+    if not leading_zero and formatted.startswith("0"):
+        return formatted[1:]
+    return formatted
+
+
+def _ratio(numerator: float, denominator: float) -> float | None:
+    if not denominator:
+        return None
+    return numerator / denominator
+
+
+PLAYER_COUNT_KEYS = (
+    "pa",
+    "ab",
+    "h",
+    "doubles",
+    "triples",
+    "hr",
+    "r",
+    "rbi",
+    "bb",
+    "so",
+    "sb",
+    "hbp",
+    "ibb",
+    "cs",
+    "sf",
+    "sac",
+    "gidp",
+    "outs",
+    "h_allowed",
+    "r_allowed",
+    "er",
+    "bb_allowed",
+    "so_pitched",
+    "hr_allowed",
+    "hbp_allowed",
+    "ibb_allowed",
+    "wp",
+    "bk",
+    "bf",
+    "pitches",
+    "strikes",
+    "blown_saves",
+    "complete_games",
+    "shutouts",
+    "inherited_runners",
+    "inherited_runners_scored",
+)
+
+
+def _stat_column(key: str, label: str, value_key: str | None = None) -> dict[str, str]:
+    return {"key": key, "label": label, "value_key": value_key or key}
+
+
+BATTING_TABLE_COLUMNS = [
+    _stat_column("batting_games", "G"),
+    _stat_column("games_started", "GS"),
+    _stat_column("pa", "PA"),
+    _stat_column("ab", "AB"),
+    _stat_column("r", "R"),
+    _stat_column("h", "H"),
+    _stat_column("doubles", "2B"),
+    _stat_column("triples", "3B"),
+    _stat_column("hr", "HR"),
+    _stat_column("rbi", "RBI"),
+    _stat_column("bb", "BB"),
+    _stat_column("ibb", "IBB"),
+    _stat_column("so", "SO"),
+    _stat_column("hbp", "HBP"),
+    _stat_column("sf", "SF"),
+    _stat_column("sac", "SAC"),
+    _stat_column("gidp", "GIDP"),
+    _stat_column("sb", "SB"),
+    _stat_column("cs", "CS"),
+    _stat_column("avg", "AVG", "avg_value"),
+    _stat_column("obp", "OBP", "obp_value"),
+    _stat_column("slg", "SLG", "slg_value"),
+    _stat_column("ops", "OPS", "ops_value"),
+]
+
+PITCHING_TABLE_COLUMNS = [
+    _stat_column("pitching_games", "G"),
+    _stat_column("games_started_pitching", "GS"),
+    _stat_column("wins", "W"),
+    _stat_column("losses", "L"),
+    _stat_column("saves", "SV"),
+    _stat_column("holds", "HLD"),
+    _stat_column("blown_saves", "BS"),
+    _stat_column("innings_pitched", "IP", "outs"),
+    _stat_column("h_allowed", "H"),
+    _stat_column("r_allowed", "R"),
+    _stat_column("er", "ER"),
+    _stat_column("bb_allowed", "BB"),
+    _stat_column("ibb_allowed", "IBB"),
+    _stat_column("so_pitched", "SO"),
+    _stat_column("hr_allowed", "HR"),
+    _stat_column("hbp_allowed", "HBP"),
+    _stat_column("wp", "WP"),
+    _stat_column("bk", "BK"),
+    _stat_column("bf", "BF"),
+    _stat_column("pitches", "Pitches"),
+    _stat_column("strikes", "Strikes"),
+    _stat_column("complete_games", "CG"),
+    _stat_column("shutouts", "SHO"),
+    _stat_column("inherited_runners", "IR"),
+    _stat_column("inherited_runners_scored", "IRS"),
+    _stat_column("era", "ERA", "era_value"),
+    _stat_column("whip", "WHIP", "whip_value"),
+    _stat_column("k9", "K/9", "k9_value"),
+    _stat_column("bb9", "BB/9", "bb9_value"),
+]
+
+
+def _enrich_player_rates(item: dict[str, Any]) -> dict[str, Any]:
+    hits = item.get("h") or 0
+    at_bats = item.get("ab") or 0
+    walks = item.get("bb") or 0
+    hbp = item.get("hbp") or 0
+    sac_flies = item.get("sf") or 0
+    doubles = item.get("doubles") or 0
+    triples = item.get("triples") or 0
+    hr = item.get("hr") or 0
+    total_bases = hits + doubles + 2 * triples + 3 * hr
+    avg_value = _ratio(hits, at_bats)
+    obp_value = _ratio(hits + walks + hbp, at_bats + walks + hbp + sac_flies)
+    slg_value = _ratio(total_bases, at_bats)
+    ops_value = None if obp_value is None or slg_value is None else obp_value + slg_value
+    item["avg_value"] = avg_value
+    item["obp_value"] = obp_value
+    item["slg_value"] = slg_value
+    item["ops_value"] = ops_value
+    item["avg"] = format_rate(avg_value)
+    item["obp"] = format_rate(obp_value)
+    item["slg"] = format_rate(slg_value)
+    item["ops"] = format_rate(ops_value)
+    item["slash"] = format_slash(
+        hits, at_bats, walks, hbp, item.get("pa"), doubles, triples, hr
+    )
+    outs = item.get("outs") or 0
+    item["innings_pitched"] = format_innings_pitched(outs if outs else None)
+    er = item.get("er") or 0
+    hits_allowed = item.get("h_allowed") or 0
+    walks_allowed = item.get("bb_allowed") or 0
+    strikeouts = item.get("so_pitched") or 0
+    era_value = _ratio(er * 27, outs)
+    whip_value = _ratio((hits_allowed + walks_allowed) * 3, outs)
+    k9_value = _ratio(strikeouts * 27, outs)
+    bb9_value = _ratio(walks_allowed * 27, outs)
+    item["era_value"] = era_value
+    item["whip_value"] = whip_value
+    item["k9_value"] = k9_value
+    item["bb9_value"] = bb9_value
+    item["era"] = format_rate(era_value, 2, leading_zero=True)
+    item["whip"] = format_rate(whip_value, 2, leading_zero=True)
+    item["k9"] = format_rate(k9_value, 1, leading_zero=True)
+    item["bb9"] = format_rate(bb9_value, 1, leading_zero=True)
+    return item
+
+
 def event_hit_distance(event: dict[str, Any]) -> float | None:
     raw = event.get("extra_json")
     if not raw:
@@ -388,6 +552,9 @@ def list_player_summaries(
     type_groups: list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     where, params = _type_filter_sql(type_groups)
+    count_sql = ",\n            ".join(
+        f"SUM(COALESCE(p.{key}, 0)) AS {key}" for key in PLAYER_COUNT_KEYS
+    )
     rows = conn.execute(
         f"""
         SELECT
@@ -396,25 +563,14 @@ def list_player_summaries(
             COUNT(*) AS games_seen,
             SUM(p.started_game) AS games_started,
             SUM(p.started_pitching) AS games_started_pitching,
-            SUM(COALESCE(p.hr, 0)) AS hr,
-            SUM(COALESCE(p.h, 0)) AS h,
-            SUM(COALESCE(p.ab, 0)) AS ab,
-            SUM(COALESCE(p.pa, 0)) AS pa,
-            SUM(COALESCE(p.bb, 0)) AS bb,
-            SUM(COALESCE(p.hbp, 0)) AS hbp,
-            SUM(COALESCE(p.doubles, 0)) AS doubles,
-            SUM(COALESCE(p.triples, 0)) AS triples,
-            SUM(COALESCE(p.r, 0)) AS r,
-            SUM(COALESCE(p.rbi, 0)) AS rbi,
-            SUM(COALESCE(p.so, 0)) AS so,
-            SUM(COALESCE(p.sb, 0)) AS sb,
-            SUM(COALESCE(p.outs, 0)) AS outs,
-            SUM(COALESCE(p.h_allowed, 0)) AS h_allowed,
-            SUM(COALESCE(p.r_allowed, 0)) AS r_allowed,
-            SUM(COALESCE(p.er, 0)) AS er,
-            SUM(COALESCE(p.bb_allowed, 0)) AS bb_allowed,
-            SUM(COALESCE(p.so_pitched, 0)) AS so_pitched,
-            SUM(COALESCE(p.hr_allowed, 0)) AS hr_allowed
+            SUM(CASE WHEN COALESCE(p.pa, 0) > 0 THEN 1 ELSE 0 END) AS batting_games,
+            SUM(CASE WHEN COALESCE(p.outs, 0) > 0 OR p.started_pitching = 1
+                OR p.pitching_decision IS NOT NULL THEN 1 ELSE 0 END) AS pitching_games,
+            SUM(CASE WHEN p.pitching_decision = 'W' THEN 1 ELSE 0 END) AS wins,
+            SUM(CASE WHEN p.pitching_decision = 'L' THEN 1 ELSE 0 END) AS losses,
+            SUM(CASE WHEN p.pitching_decision = 'S' THEN 1 ELSE 0 END) AS saves,
+            SUM(CASE WHEN p.pitching_decision = 'H' THEN 1 ELSE 0 END) AS holds,
+            {count_sql}
         FROM player_game_stats p
         JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
         JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
@@ -426,18 +582,7 @@ def list_player_summaries(
     ).fetchall()
     summaries = []
     for row in rows:
-        item = dict(row)
-        item["slash"] = format_slash(
-            item["h"],
-            item["ab"],
-            item["bb"],
-            item["hbp"],
-            item["pa"],
-            item["doubles"],
-            item["triples"],
-            item["hr"],
-        )
-        item["innings_pitched"] = format_innings_pitched(item["outs"])
+        item = _enrich_player_rates(dict(row))
         summaries.append(item)
     honor_map = honor_types_by_player(conn)
     for item in summaries:
@@ -617,43 +762,12 @@ def seen_honors(
 
 
 def _sum_player_lines(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    keys = (
-        "pa",
-        "ab",
-        "h",
-        "doubles",
-        "triples",
-        "hr",
-        "r",
-        "rbi",
-        "bb",
-        "so",
-        "sb",
-        "hbp",
-        "outs",
-        "h_allowed",
-        "r_allowed",
-        "er",
-        "bb_allowed",
-        "so_pitched",
-        "hr_allowed",
-    )
-    totals = {key: 0 for key in keys}
+    totals = {key: 0 for key in PLAYER_COUNT_KEYS}
     totals["games_seen"] = len(rows)
     totals["games_started"] = sum(int(row.get("started_game") or 0) for row in rows)
     totals["games_started_pitching"] = sum(int(row.get("started_pitching") or 0) for row in rows)
     for row in rows:
-        for key in keys:
+        for key in PLAYER_COUNT_KEYS:
             totals[key] += int(row.get(key) or 0)
-    totals["slash"] = format_slash(
-        totals["h"],
-        totals["ab"],
-        totals["bb"],
-        totals["hbp"],
-        totals["pa"],
-        totals["doubles"],
-        totals["triples"],
-        totals["hr"],
-    )
-    totals["innings_pitched"] = format_innings_pitched(totals["outs"] if totals["outs"] else None)
+    _enrich_player_rates(totals)
     return totals

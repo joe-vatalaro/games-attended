@@ -1,26 +1,20 @@
 {% extends "base.html" %}
-{% block title %}Players{% endblock %}
-{% block body %}
-  <h2>Players</h2>
-  {% include "_type_filter.html" %}
-  {% if players %}
-    <table>
+
+{% macro player_stat_table(rows, columns, default_sort) %}
+  <div class="table-scroll">
+    <table class="stat-table" data-sortable>
       <thead>
         <tr>
-          <th>Player</th>
-          <th>Games seen</th>
-          <th>Started</th>
-          <th>SP</th>
-          <th>HR</th>
-          <th>H</th>
-          <th>AB</th>
-          <th>Slash</th>
+          <th data-sort="player_name">Player</th>
+          {% for col in columns %}
+            <th data-sort="{{ col.key }}"{% if col.key == default_sort %} aria-sort="descending"{% endif %}>{{ col.label }}</th>
+          {% endfor %}
         </tr>
       </thead>
       <tbody>
-        {% for row in players %}
+        {% for row in rows %}
           <tr>
-            <td>
+            <td data-value="{{ row.player_name }}">
               <a href="{{ url_for('player_detail', player_id=row.player_id) }}">{{ row.player_name }}</a>
               {% if row.honors %}
                 <div class="honor-row">
@@ -30,18 +24,44 @@
                 </div>
               {% endif %}
             </td>
-            <td>{{ row.games_seen }}</td>
-            <td>{{ row.games_started }}</td>
-            <td>{{ row.games_started_pitching }}</td>
-            <td>{{ row.hr }}</td>
-            <td>{{ row.h }}</td>
-            <td>{{ row.ab }}</td>
-            <td class="slash">{{ row.slash }}</td>
+            {% for col in columns %}
+              {% set sort_val = row[col.value_key] %}
+              <td{% if sort_val is not none %} data-value="{{ sort_val }}"{% endif %}>{{ row[col.key] }}</td>
+            {% endfor %}
           </tr>
         {% endfor %}
       </tbody>
     </table>
-  {% else %}
-    <p class="muted">No player lines in this view yet. Reparse cached games to fill them.</p>
-  {% endif %}
+  </div>
+{% endmacro %}
+
+{% block title %}Players{% endblock %}
+{% block body %}
+  <h2>Players</h2>
+  {% include "_type_filter.html" %}
+
+  <div class="report-tabs" role="tablist" aria-label="Player stats" data-report-tabs data-default-tab="batting">
+    <button type="button" role="tab" id="tab-batting" data-tab="batting" aria-controls="panel-batting" aria-selected="true">Batting</button>
+    <button type="button" role="tab" id="tab-pitching" data-tab="pitching" aria-controls="panel-pitching" aria-selected="false" tabindex="-1">Pitching</button>
+  </div>
+
+  <div id="panel-batting" class="report-panel" role="tabpanel" data-report-panel="batting" aria-labelledby="tab-batting">
+    {% if batting_players %}
+      {{ player_stat_table(batting_players, batting_columns, "batting_games") }}
+    {% else %}
+      <p class="muted">No batting lines in this view yet. Reparse cached games to fill them.</p>
+    {% endif %}
+  </div>
+
+  <div id="panel-pitching" class="report-panel" role="tabpanel" data-report-panel="pitching" aria-labelledby="tab-pitching">
+    {% if pitching_players %}
+      {{ player_stat_table(pitching_players, pitching_columns, "pitching_games") }}
+    {% else %}
+      <p class="muted">No pitching lines in this view yet. Reparse cached games to fill them.</p>
+    {% endif %}
+  </div>
+{% endblock %}
+{% block scripts %}
+  <script src="{{ url_for('static', filename='report.js') }}"></script>
+  <script src="{{ url_for('static', filename='sort.js') }}"></script>
 {% endblock %}

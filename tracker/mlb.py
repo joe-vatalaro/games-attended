@@ -399,6 +399,11 @@ def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
                     "so": _maybe_int(batting.get("strikeOuts")),
                     "sb": _maybe_int(batting.get("stolenBases")),
                     "hbp": _maybe_int(batting.get("hitByPitch")),
+                    "ibb": _maybe_int(batting.get("intentionalWalks")),
+                    "cs": _maybe_int(batting.get("caughtStealing")),
+                    "sf": _maybe_int(batting.get("sacFlies")),
+                    "sac": _maybe_int(batting.get("sacBunts")),
+                    "gidp": _maybe_int(batting.get("groundIntoDoublePlay")),
                     "outs": _maybe_int(pitching.get("outs")),
                     "h_allowed": _maybe_int(pitching.get("hits")),
                     "r_allowed": _maybe_int(pitching.get("runs")),
@@ -406,6 +411,18 @@ def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
                     "bb_allowed": _maybe_int(pitching.get("baseOnBalls")),
                     "so_pitched": _maybe_int(pitching.get("strikeOuts")),
                     "hr_allowed": _maybe_int(pitching.get("homeRuns")),
+                    "hbp_allowed": _first_int(pitching, "hitBatsmen", "hitByPitch"),
+                    "ibb_allowed": _maybe_int(pitching.get("intentionalWalks")),
+                    "wp": _maybe_int(pitching.get("wildPitches")),
+                    "bk": _maybe_int(pitching.get("balks")),
+                    "bf": _maybe_int(pitching.get("battersFaced")),
+                    "pitches": _first_int(pitching, "pitchesThrown", "numberOfPitches"),
+                    "strikes": _maybe_int(pitching.get("strikes")),
+                    "blown_saves": _maybe_int(pitching.get("blownSaves")),
+                    "complete_games": _maybe_int(pitching.get("completeGames")),
+                    "shutouts": _maybe_int(pitching.get("shutouts")),
+                    "inherited_runners": _maybe_int(pitching.get("inheritedRunners")),
+                    "inherited_runners_scored": _maybe_int(pitching.get("inheritedRunnersScored")),
                     "pitching_decision": _pitching_decision(pitching),
                 }
             )
@@ -482,6 +499,14 @@ def _as_int(value: Any) -> int | None:
 
 def _maybe_int(value: Any) -> int | None:
     return _as_int(value)
+
+
+def _first_int(payload: dict[str, Any], *keys: str) -> int | None:
+    for key in keys:
+        value = _maybe_int(payload.get(key))
+        if value is not None:
+            return value
+    return None
 
 
 def _pitching_decision(pitching: dict[str, Any]) -> str | None:

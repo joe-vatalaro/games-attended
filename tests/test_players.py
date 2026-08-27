@@ -71,7 +71,12 @@ def test_player_summaries_and_report_highlights(db_conn):
     summaries = {row["player_id"]: row for row in list_player_summaries(db_conn)}
     assert summaries[111111]["games_seen"] == 1
     assert summaries[111111]["hr"] == 1
+    assert summaries[111111]["batting_games"] == 1
+    assert summaries[111111]["avg"] == ".500"
     assert summaries[222222]["games_started_pitching"] == 1
+    assert summaries[222222]["pitching_games"] == 1
+    assert summaries[222222]["wins"] == 1
+    assert summaries[222222]["innings_pitched"] == "6.0"
     report = build_report(db_conn)
     assert report["players"]["home_run_count"] == 1
     assert report["players"]["longest_home_runs"][0]["distance"] == 412.0
@@ -102,6 +107,11 @@ def test_players_and_player_pages(db_conn, tmp_path):
         report = flask_client.get("/report").get_data(as_text=True)
     assert "Nathan Lukes" in index
     assert "Aaron Judge" in index
+    assert 'data-tab="batting"' in index
+    assert 'data-tab="pitching"' in index
+    assert "data-sort=\"pa\"" in index
+    assert "ERA" in index
+    assert "sort.js" in index
     assert "2-4" in detail
     assert "1 HR" in detail
     assert "Most seen players" in report

@@ -22,11 +22,16 @@
     const fromHash = window.location.hash.replace(/^#/, "");
     if (allowed[fromQuery]) return fromQuery;
     if (allowed[fromHash]) return fromHash;
-    return "games";
+    return defaultTab();
+  }
+
+  function defaultTab() {
+    const fallback = tablist.getAttribute("data-default-tab") || (buttons[0] && buttons[0].getAttribute("data-tab"));
+    return allowed[fallback] ? fallback : (buttons[0] && buttons[0].getAttribute("data-tab"));
   }
 
   function show(tab, persist) {
-    if (!allowed[tab]) tab = "games";
+    if (!allowed[tab]) tab = defaultTab();
     buttons.forEach(function (button) {
       const on = button.getAttribute("data-tab") === tab;
       button.setAttribute("aria-selected", on ? "true" : "false");

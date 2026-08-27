@@ -18,6 +18,8 @@ from tracker.enrich import (
 from tracker.mlb import MlbClient, MlbError, game_type_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
 from tracker.reports import (
+    BATTING_TABLE_COLUMNS,
+    PITCHING_TABLE_COLUMNS,
     build_report,
     format_innings_pitched,
     format_record,
@@ -295,7 +297,14 @@ def create_app(
         conn = get_conn()
         rows = list_player_summaries(conn, selected)
         conn.close()
-        return render_template("players.html", players=rows, type_groups=selected)
+        return render_template(
+            "players.html",
+            batting_players=[row for row in rows if row["batting_games"]],
+            pitching_players=[row for row in rows if row["pitching_games"]],
+            batting_columns=BATTING_TABLE_COLUMNS,
+            pitching_columns=PITCHING_TABLE_COLUMNS,
+            type_groups=selected,
+        )
 
     @app.route("/players/<int:player_id>")
     def player_detail(player_id: int):

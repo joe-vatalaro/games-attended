@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.paths import DB_PATH, ensure_data_dirs
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS attended_games (
@@ -86,6 +86,11 @@ CREATE TABLE IF NOT EXISTS player_game_stats (
     so INTEGER,
     sb INTEGER,
     hbp INTEGER,
+    ibb INTEGER,
+    cs INTEGER,
+    sf INTEGER,
+    sac INTEGER,
+    gidp INTEGER,
     outs INTEGER,
     h_allowed INTEGER,
     r_allowed INTEGER,
@@ -93,6 +98,18 @@ CREATE TABLE IF NOT EXISTS player_game_stats (
     bb_allowed INTEGER,
     so_pitched INTEGER,
     hr_allowed INTEGER,
+    hbp_allowed INTEGER,
+    ibb_allowed INTEGER,
+    wp INTEGER,
+    bk INTEGER,
+    bf INTEGER,
+    pitches INTEGER,
+    strikes INTEGER,
+    blown_saves INTEGER,
+    complete_games INTEGER,
+    shutouts INTEGER,
+    inherited_runners INTEGER,
+    inherited_runners_scored INTEGER,
     pitching_decision TEXT,
     PRIMARY KEY (mlb_game_pk, player_id)
 );
@@ -216,6 +233,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             """
         )
         conn.execute("PRAGMA user_version = 4")
+    if current < 5:
+        for column in PLAYER_STAT_V5_COLUMNS:
+            _add_column_if_missing(conn, "player_game_stats", column, "INTEGER")
+        conn.execute("PRAGMA user_version = 5")
     conn.commit()
 
 
@@ -437,6 +458,11 @@ PLAYER_STAT_COLUMNS = [
     "so",
     "sb",
     "hbp",
+    "ibb",
+    "cs",
+    "sf",
+    "sac",
+    "gidp",
     "outs",
     "h_allowed",
     "r_allowed",
@@ -444,7 +470,39 @@ PLAYER_STAT_COLUMNS = [
     "bb_allowed",
     "so_pitched",
     "hr_allowed",
+    "hbp_allowed",
+    "ibb_allowed",
+    "wp",
+    "bk",
+    "bf",
+    "pitches",
+    "strikes",
+    "blown_saves",
+    "complete_games",
+    "shutouts",
+    "inherited_runners",
+    "inherited_runners_scored",
     "pitching_decision",
+]
+
+PLAYER_STAT_V5_COLUMNS = [
+    "ibb",
+    "cs",
+    "sf",
+    "sac",
+    "gidp",
+    "hbp_allowed",
+    "ibb_allowed",
+    "wp",
+    "bk",
+    "bf",
+    "pitches",
+    "strikes",
+    "blown_saves",
+    "complete_games",
+    "shutouts",
+    "inherited_runners",
+    "inherited_runners_scored",
 ]
 
 GAME_EVENT_COLUMNS = [
