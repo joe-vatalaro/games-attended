@@ -26,6 +26,7 @@ from tracker.reports import (
     format_score,
     format_slash,
     list_player_summaries,
+    parse_min_pa,
     parse_report_type_groups,
     player_page,
 )
@@ -294,16 +295,20 @@ def create_app(
     @app.route("/players")
     def players():
         selected = _selected_type_groups()
+        min_pa = parse_min_pa(request.args.get("min_pa"))
         conn = get_conn()
         rows = list_player_summaries(conn, selected)
         conn.close()
         return render_template(
             "players.html",
-            batting_players=[row for row in rows if row["batting_games"]],
+            batting_players=[
+                row for row in rows if row["batting_games"] and row["pa"] >= min_pa
+            ],
             pitching_players=[row for row in rows if row["pitching_games"]],
             batting_columns=BATTING_TABLE_COLUMNS,
             pitching_columns=PITCHING_TABLE_COLUMNS,
             type_groups=selected,
+            min_pa=min_pa,
         )
 
     @app.route("/players/<int:player_id>")

@@ -4,7 +4,7 @@ from tracker import db
 from tracker.app import create_app
 from tracker.enrich import apply_feed_tables, reparse_cache
 from tracker.mlb import parse_game_details, parse_game_events, parse_player_game_stats
-from tracker.reports import build_report, list_player_summaries, player_page
+from tracker.reports import build_report, list_player_summaries, parse_min_pa, player_page
 from tests.conftest import load_fixture
 
 
@@ -117,6 +117,21 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "Most seen players" in report
     assert "Home runs seen" in report
     assert "412" in report
+
+
+def test_players_page_filters_by_min_pa(db_conn, tmp_path):
+    _seed_player_game(db_conn)
+    assert parse_min_pa("") == 0
+    assert parse_min_pa("4") == 4
+    assert parse_min_pa("-2") == 0
+    app = create_app(db_path=tmp_path / "games.db", secret_key="test")
+    with app.test_client() as flask_client:
+        everyone = flask_client.get("/players").get_data(as_text=True)
+        qualified = flask_client.get("/players?min_pa=5").get_data(as_text=True)
+    assert "Nathan Lukes" in everyone
+    assert "Min PA" in everyone
+    assert "Nathan Lukes" not in qualified
+    assert "No batters with at least 5 PA" in qualified
 
 
 def test_apply_feed_tables_matches_parsers(db_conn):

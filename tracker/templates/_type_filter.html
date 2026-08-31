@@ -17,5 +17,11 @@
     <input type="checkbox" name="type" value="other"{% if "other" in type_groups %} checked{% endif %}>
     Other
   </label>
+  {% if min_pa is defined %}
+    <label class="min-pa-filter">
+      Min PA
+      <input type="number" name="min_pa" min="0" step="1" inputmode="numeric" value="{{ min_pa if min_pa else '' }}" placeholder="0">
+    </label>
+  {% endif %}
   <button type="submit">Apply</button>
 </form>

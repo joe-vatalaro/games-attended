@@ -49,7 +49,7 @@
     {% if batting_players %}
       {{ player_stat_table(batting_players, batting_columns, "batting_games") }}
     {% else %}
-      <p class="muted">No batting lines in this view yet. Reparse cached games to fill them.</p>
+      <p class="muted">{% if min_pa %}No batters with at least {{ min_pa }} PA in this view.{% else %}No batting lines in this view yet. Reparse cached games to fill them.{% endif %}</p>
     {% endif %}
   </div>
 

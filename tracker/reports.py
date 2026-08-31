@@ -37,6 +37,15 @@ def parse_report_type_groups(values: list[str] | None, *, explicit: bool = False
     return [value for value in values or [] if value in REPORT_TYPE_GROUPS]
 
 
+def parse_min_pa(value: str | int | None) -> int:
+    if value is None or value == "":
+        return 0
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return 0
+
+
 def allowed_game_types(type_groups: list[str] | tuple[str, ...] | None) -> set[str]:
     groups = type_groups if type_groups is not None else DEFAULT_REPORT_TYPE_GROUPS
     allowed: set[str] = set()
