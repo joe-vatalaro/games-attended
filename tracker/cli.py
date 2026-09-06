@@ -242,5 +242,6 @@ def _cmd_report(conn, args) -> int:
         print(f"\nHome runs seen: {players['home_run_count']}")
         for event in players["longest_home_runs"][:3]:
             distance = f" ({int(event['distance'])} ft)" if event.get("distance") else ""
-            print(f"  {event['batter_name']}: {event['description']}{distance}")
+            exit_velo = f" {event['exit_velo']:.1f} mph" if event.get("exit_velo") else ""
+            print(f"  {event['batter_name']}: {event['description']}{distance}{exit_velo}")
     return 0

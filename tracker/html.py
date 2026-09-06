@@ -215,10 +215,11 @@ def _home_run_block(players: dict) -> str:
     count = players.get("home_run_count") or 0
     if not count:
         return "<p>No home runs in this view.</p>"
-    longest = players.get("longest_home_runs") or []
+    longest = players.get("home_runs") or players.get("longest_home_runs") or []
     items = []
     for event in longest:
         distance = f" — {int(event['distance'])} ft" if event.get("distance") else ""
-        items.append(f"{event.get('batter_name')}: {event.get('description') or ''}{distance}")
+        exit_velo = f" — {event['exit_velo']:.1f} mph" if event.get("exit_velo") else ""
+        items.append(f"{event.get('batter_name')}: {event.get('description') or ''}{distance}{exit_velo}")
     extra = _simple_list(items, lambda item: item) if items else ""
     return f"<p>{count} home runs seen.</p>{extra}"

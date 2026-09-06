@@ -522,7 +522,7 @@ def _enrich_player_rates(item: dict[str, Any]) -> dict[str, Any]:
     return item
 
 
-def event_hit_distance(event: dict[str, Any]) -> float | None:
+def event_hit_stat(event: dict[str, Any], key: str) -> float | None:
     raw = event.get("extra_json")
     if not raw:
         return None
@@ -530,10 +530,18 @@ def event_hit_distance(event: dict[str, Any]) -> float | None:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
         return None
-    distance = data.get("totalDistance")
-    if distance is None or distance == "":
+    value = data.get(key)
+    if value is None or value == "":
         return None
-    return float(distance)
+    return float(value)
+
+
+def event_hit_distance(event: dict[str, Any]) -> float | None:
+    return event_hit_stat(event, "totalDistance")
+
+
+def event_exit_velo(event: dict[str, Any]) -> float | None:
+    return event_hit_stat(event, "launchSpeed")
 
 
 def _type_filter_sql(type_groups: list[str] | tuple[str, ...] | None) -> tuple[str, list[Any]]:
@@ -666,6 +674,7 @@ def list_home_runs(
     for row in rows:
         item = dict(row)
         item["distance"] = event_hit_distance(item)
+        item["exit_velo"] = event_exit_velo(item)
         events.append(item)
     return events
 
@@ -680,17 +689,16 @@ def player_highlights(
         key=lambda row: (-row["games_started_pitching"], -row["games_seen"], row["player_name"]),
     )
     home_runs = list_home_runs(conn, type_groups)
-    longest = sorted(
-        [event for event in home_runs if event.get("distance") is not None],
-        key=lambda event: event["distance"],
-        reverse=True,
+    by_distance = sorted(
+        home_runs,
+        key=lambda event: (event.get("distance") is None, -(event.get("distance") or 0)),
     )
     return {
         "most_seen": summaries[:10],
         "starters": starters[:15],
-        "home_runs": home_runs,
+        "home_runs": by_distance,
         "home_run_count": len(home_runs),
-        "longest_home_runs": longest[:5],
+        "longest_home_runs": by_distance,
     }
 
 

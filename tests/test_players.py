@@ -79,6 +79,8 @@ def test_player_summaries_and_report_highlights(db_conn):
     assert summaries[222222]["innings_pitched"] == "6.0"
     report = build_report(db_conn)
     assert report["players"]["home_run_count"] == 1
+    assert report["players"]["home_runs"][0]["distance"] == 412.0
+    assert report["players"]["home_runs"][0]["exit_velo"] == 108.0
     assert report["players"]["longest_home_runs"][0]["distance"] == 412.0
     assert report["players"]["most_seen"][0]["player_id"] in summaries
     page = player_page(db_conn, 111111)
@@ -117,6 +119,9 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "Most seen players" in report
     assert "Home runs seen" in report
     assert "412" in report
+    assert "108.0" in report
+    assert "data-sort=\"distance\"" in report
+    assert "data-sort=\"exit_velo\"" in report
 
 
 def test_players_page_filters_by_min_pa(db_conn, tmp_path):
