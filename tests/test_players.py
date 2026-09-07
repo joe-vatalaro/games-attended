@@ -4,7 +4,7 @@ from tracker import db
 from tracker.app import create_app
 from tracker.enrich import apply_feed_tables, reparse_cache
 from tracker.mlb import parse_game_details, parse_game_events, parse_player_game_stats
-from tracker.reports import build_report, list_player_summaries, parse_min_count, parse_min_pa, player_page
+from tracker.reports import build_report, game_boxscore, list_player_summaries, parse_min_count, parse_min_pa, player_page
 from tests.conftest import load_fixture
 
 
@@ -110,11 +110,42 @@ def test_game_page_shows_lineup_and_home_run(db_conn, tmp_path):
         html = flask_client.get(f"/games/{game_id}").get_data(as_text=True)
     assert "Nathan Lukes" in html
     assert "Aaron Judge" in html
+    assert "Pinch Hitter" in html
+    assert "Linescore" in html
+    assert "Batting" in html
+    assert "Pitching" in html
+    assert "6.0" in html
     assert "Nathan Lukes homers (8)" in html
     assert "top 3" in html
     assert "/players/111111" in html
     assert "boxes/NYA/NYA202407040.shtml" in html
     assert "gamefeed?gamePk=900001" in html
+
+
+def test_game_boxscore_includes_bench_and_linescore(db_conn):
+    game_id, details = _seed_player_game(db_conn)
+    game = db.get_attended_with_details(db_conn, game_id)
+    stats = db.list_player_game_stats(db_conn, details["mlb_game_pk"])
+    box = game_boxscore(game, stats)
+    away_names = [row["player_name"] for row in box["batting"]["away"]["rows"]]
+    assert away_names == ["Nathan Lukes", "Vladimir Guerrero Jr.", "Pinch Hitter"]
+    assert box["batting"]["away"]["totals"]["h"] == 3
+    assert box["batting"]["away"]["totals"]["hr"] == 1
+    assert box["pitching"]["home"]["rows"][0]["player_name"] == "Test Starter"
+    assert box["pitching"]["home"]["totals"]["innings_pitched"] == "6.0"
+    assert box["linescore"]["away"]["r"] == 4
+    assert box["linescore"]["home"]["r"] == 5
+    assert box["linescore"]["home"]["e"] == 1
+
+
+def test_game_boxscore_reads_inning_runs():
+    details = parse_game_details(load_fixture("feed_746946.json"))
+    box = game_boxscore({**details, "away_score": 4, "home_score": 8}, [])
+    assert box["linescore"]["labels"][0] == 1
+    assert box["linescore"]["away"]["cells"][0] == "0"
+    assert box["linescore"]["home"]["cells"][0] == "3"
+    assert box["linescore"]["home"]["cells"][-1] == "X"
+    assert box["linescore"]["away"]["h"] > 0
 
 
 def test_players_and_player_pages(db_conn, tmp_path):
@@ -154,6 +185,10 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "Extremes" in report
     assert "Longest (time)" in report
     assert "Highest attendance" in report
+    assert 'data-extreme="duration"' in report
+    assert "extreme-dialog" in report
+    assert "extreme-chart-data" in report
+    assert "Game length" in report
 
 
 def test_report_nights_gems_uniforms_and_walkoff(db_conn):

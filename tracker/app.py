@@ -32,6 +32,7 @@ from tracker.reports import (
     format_record,
     format_score,
     format_slash,
+    game_boxscore,
     list_player_summaries,
     parse_min_count,
     parse_report_type_groups,
@@ -205,17 +206,14 @@ def create_app(
     def game_detail(game_id: int):
         conn = get_conn()
         game = db.get_attended_with_details(conn, game_id)
-        lineups = {"away": [], "home": []}
+        stats = []
         starters = {"away": None, "home": None}
         home_runs = []
         if game and game.get("mlb_game_pk"):
-            for row in db.list_player_game_stats(conn, game["mlb_game_pk"]):
-                if row["started_game"]:
-                    lineups[row["side"]].append(row)
+            stats = db.list_player_game_stats(conn, game["mlb_game_pk"])
+            for row in stats:
                 if row["started_pitching"]:
                     starters[row["side"]] = row
-            for side in lineups:
-                lineups[side].sort(key=lambda item: item["batting_order"] or 99)
             home_runs = db.list_game_events(conn, game["mlb_game_pk"], event_type="home_run")
         conn.close()
         if game is None:
@@ -224,7 +222,7 @@ def create_app(
         return render_template(
             "game.html",
             game=game,
-            lineups=lineups,
+            boxscore=game_boxscore(game, stats),
             starters=starters,
             home_runs=home_runs,
         )

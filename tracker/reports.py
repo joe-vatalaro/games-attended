@@ -110,6 +110,7 @@ def build_report(
         "stadiums": _stadiums(confirmed, parks_path),
         "attendance": _attendance(confirmed),
         "extremes": _score_weather_extremes(confirmed),
+        "extreme_charts": _extreme_charts(confirmed),
         "by_year": _by_year(confirmed),
         "notable": _notable(confirmed),
         "unmatched": unmatched,
@@ -362,6 +363,168 @@ def format_innings_pitched(outs: int | None) -> str:
     if outs is None:
         return "—"
     return f"{outs // 3}.{outs % 3}"
+
+
+def game_boxscore(game: dict[str, Any], stats: list[dict[str, Any]]) -> dict[str, Any]:
+    by_side = {"away": [], "home": []}
+    for row in stats:
+        side = row.get("side")
+        if side in by_side:
+            by_side[side].append(row)
+    batting = {side: _box_batters(rows) for side, rows in by_side.items()}
+    pitching = {side: _box_pitchers(rows) for side, rows in by_side.items()}
+    return {
+        "linescore": _box_linescore(game, batting, by_side),
+        "batting": batting,
+        "pitching": pitching,
+    }
+
+
+def _box_batters(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    batters = [
+        {**row, "box_position": _box_position(row)}
+        for row in rows
+        if row.get("started_game") or row.get("pa") or row.get("ab")
+    ]
+    batters.sort(
+        key=lambda row: (
+            row.get("batting_order") is None,
+            row.get("batting_order") or 99,
+            row.get("player_name") or "",
+        )
+    )
+    return {
+        "rows": batters,
+        "totals": _sum_box_stats(batters, ("ab", "r", "h", "rbi", "bb", "so", "hr")),
+    }
+
+
+def _box_pitchers(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    pitchers = [
+        row
+        for row in rows
+        if row.get("started_pitching") or row.get("outs") or row.get("bf")
+    ]
+    pitchers.sort(
+        key=lambda row: (
+            0 if row.get("started_pitching") else 1,
+            row.get("player_name") or "",
+        )
+    )
+    totals = _sum_box_stats(
+        pitchers,
+        ("outs", "h_allowed", "r_allowed", "er", "bb_allowed", "so_pitched", "hr_allowed"),
+    )
+    totals["innings_pitched"] = format_innings_pitched(totals.get("outs") or 0)
+    return {"rows": pitchers, "totals": totals}
+
+
+def _box_position(row: dict[str, Any]) -> str:
+    position = row.get("fielding_position")
+    if position and position != "—":
+        return position
+    if row.get("started_pitching") or row.get("outs"):
+        return "P"
+    if not row.get("started_game"):
+        return "PH"
+    return ""
+
+
+def _sum_box_stats(rows: list[dict[str, Any]], keys: tuple[str, ...]) -> dict[str, int]:
+    return {key: sum(row.get(key) or 0 for row in rows) for key in keys}
+
+
+def _box_linescore(
+    game: dict[str, Any],
+    batting: dict[str, dict[str, Any]],
+    by_side: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any] | None:
+    innings = _parse_linescore_innings(game.get("linescore_json"))
+    if not innings and game.get("home_score") is None:
+        return None
+    if not innings:
+        innings = [{} for _ in range(game.get("innings") or 9)]
+    labels = [inning.get("num") or index + 1 for index, inning in enumerate(innings)]
+    has_runs = any(_inning_runs(inning, "away") is not None or _inning_runs(inning, "home") is not None for inning in innings)
+    away_cells = [_inning_cell(inning, "away") for inning in innings]
+    home_cells = [_inning_cell(inning, "home") for inning in innings]
+    if has_runs and innings:
+        last = innings[-1]
+        last_num = last.get("num") or len(innings)
+        home_winning = (game.get("home_score") or 0) > (game.get("away_score") or 0)
+        if (
+            home_winning
+            and last_num >= 9
+            and _inning_runs(last, "home") is None
+            and _inning_runs(last, "away") is not None
+        ):
+            home_cells[-1] = "X"
+    return {
+        "labels": labels,
+        "away": {
+            "cells": away_cells,
+            "r": game.get("away_score"),
+            "h": _linescore_or_stat_total(innings, "away", "hits", batting["away"]["totals"].get("h") or 0),
+            "e": _linescore_or_stat_total(
+                innings,
+                "away",
+                "errors",
+                sum(row.get("fielding_errors") or 0 for row in by_side["away"]),
+            ),
+        },
+        "home": {
+            "cells": home_cells,
+            "r": game.get("home_score"),
+            "h": _linescore_or_stat_total(innings, "home", "hits", batting["home"]["totals"].get("h") or 0),
+            "e": _linescore_or_stat_total(
+                innings,
+                "home",
+                "errors",
+                sum(row.get("fielding_errors") or 0 for row in by_side["home"]),
+            ),
+        },
+    }
+
+
+def _parse_linescore_innings(raw: str | None) -> list[dict[str, Any]]:
+    if not raw:
+        return []
+    try:
+        payload = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return []
+    if not isinstance(payload, list):
+        return []
+    return [inning if isinstance(inning, dict) else {} for inning in payload]
+
+
+def _inning_runs(inning: dict[str, Any], side: str) -> int | None:
+    half = inning.get(side)
+    if not isinstance(half, dict) or "runs" not in half:
+        return None
+    return half.get("runs")
+
+
+def _inning_cell(inning: dict[str, Any], side: str) -> str:
+    runs = _inning_runs(inning, side)
+    return str(runs) if runs is not None else ""
+
+
+def _linescore_or_stat_total(
+    innings: list[dict[str, Any]],
+    side: str,
+    key: str,
+    fallback: int,
+) -> int:
+    seen = False
+    total = 0
+    for inning in innings:
+        half = inning.get(side)
+        if not isinstance(half, dict) or key not in half:
+            continue
+        seen = True
+        total += half.get(key) or 0
+    return total if seen else fallback
 
 
 def format_rate(value: float | None, digits: int = 3, *, leading_zero: bool = False) -> str:
@@ -700,6 +863,49 @@ def _score_weather_extremes(games: list[dict[str, Any]]) -> dict[str, Any]:
             if game.get("home_score") == 0 or game.get("away_score") == 0
         ),
     }
+
+
+def _extreme_charts(games: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "duration": _metric_chart("Game length", "min", games, lambda game: game.get("duration_minutes")),
+        "innings": _metric_chart("Innings", "inn", games, lambda game: game.get("innings")),
+        "attendance": _metric_chart("Attendance", "fans", games, lambda game: game.get("attendance")),
+        "runs": _metric_chart("Runs scored", "runs", games, _combined_runs),
+        "margin": _metric_chart("Margin", "runs", games, _run_margin),
+        "temp": _metric_chart("Temperature", "°F", games, _weather_temp_f),
+        "shutouts": _metric_chart("Shutouts", "runs", games, _combined_runs, mark_shutouts=True),
+    }
+
+
+def _metric_chart(
+    title: str,
+    unit: str,
+    games: list[dict[str, Any]],
+    value_of,
+    *,
+    mark_shutouts: bool = False,
+) -> dict[str, Any]:
+    points = []
+    for game in games:
+        value = value_of(game)
+        if value is None:
+            continue
+        home = game.get("home_score")
+        away = game.get("away_score")
+        point = {
+            "id": game.get("id"),
+            "date": game.get("official_date") or game.get("date"),
+            "value": value,
+            "score": format_score(game),
+            "venue": game.get("venue_name"),
+        }
+        if mark_shutouts or unit == "runs":
+            point["shutout"] = home == 0 or away == 0
+        if unit == "°F" and game.get("weather_condition"):
+            point["detail"] = game["weather_condition"]
+        points.append(point)
+    points.sort(key=lambda row: (row.get("date") or "", row.get("id") or 0))
+    return {"title": title, "unit": unit, "points": points}
 
 
 def _type_filter_sql(type_groups: list[str] | tuple[str, ...] | None) -> tuple[str, list[Any]]:

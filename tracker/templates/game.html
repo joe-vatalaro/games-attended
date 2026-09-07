@@ -57,24 +57,143 @@
         {% if game.is_no_hitter %}<span class="badge">No-hitter</span>{% endif %}
       </p>
     {% endif %}
-    {% if lineups.away or lineups.home %}
-      <div class="lineups">
-        <div>
-          <h3>{{ game.away_team }}</h3>
-          <ol class="lineup">
-            {% for batter in lineups.away %}
-              <li><a href="{{ url_for('player_detail', player_id=batter.player_id) }}">{{ batter.player_name }}</a></li>
-            {% endfor %}
-          </ol>
+    {% if boxscore.linescore %}
+      <div class="card boxscore-card">
+        <h3>Linescore</h3>
+        <div class="table-scroll">
+          <table class="linescore">
+            <thead>
+              <tr>
+                <th></th>
+                {% for label in boxscore.linescore.labels %}
+                  <th>{{ label }}</th>
+                {% endfor %}
+                <th>R</th><th>H</th><th>E</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>{{ game.away_team }}</th>
+                {% for cell in boxscore.linescore.away.cells %}
+                  <td>{{ cell }}</td>
+                {% endfor %}
+                <td>{{ boxscore.linescore.away.r if boxscore.linescore.away.r is not none else "—" }}</td>
+                <td>{{ boxscore.linescore.away.h }}</td>
+                <td>{{ boxscore.linescore.away.e }}</td>
+              </tr>
+              <tr>
+                <th>{{ game.home_team }}</th>
+                {% for cell in boxscore.linescore.home.cells %}
+                  <td>{{ cell }}</td>
+                {% endfor %}
+                <td>{{ boxscore.linescore.home.r if boxscore.linescore.home.r is not none else "—" }}</td>
+                <td>{{ boxscore.linescore.home.h }}</td>
+                <td>{{ boxscore.linescore.home.e }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div>
-          <h3>{{ game.home_team }}</h3>
-          <ol class="lineup">
-            {% for batter in lineups.home %}
-              <li><a href="{{ url_for('player_detail', player_id=batter.player_id) }}">{{ batter.player_name }}</a></li>
-            {% endfor %}
-          </ol>
-        </div>
+      </div>
+    {% endif %}
+
+    {% if boxscore.batting.away.rows or boxscore.batting.home.rows %}
+      <div class="card boxscore-card">
+        <h3>Batting</h3>
+        {% for side, team_name in [("away", game.away_team), ("home", game.home_team)] %}
+          {% set batting = boxscore.batting[side] %}
+          {% if batting.rows %}
+            <h4>{{ team_name }}</h4>
+            <div class="table-scroll">
+              <table class="boxscore">
+                <thead>
+                  <tr>
+                    <th>Player</th><th>Pos</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>HR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for batter in batting.rows %}
+                    <tr{% if not batter.started_game %} class="box-bench"{% endif %}>
+                      <td>
+                        <a href="{{ url_for('player_detail', player_id=batter.player_id) }}">{{ batter.player_name }}</a>
+                      </td>
+                      <td>{{ batter.box_position }}</td>
+                      <td>{{ batter.ab or 0 }}</td>
+                      <td>{{ batter.r or 0 }}</td>
+                      <td>{{ batter.h or 0 }}</td>
+                      <td>{{ batter.rbi or 0 }}</td>
+                      <td>{{ batter.bb or 0 }}</td>
+                      <td>{{ batter.so or 0 }}</td>
+                      <td>{{ batter.hr or 0 }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  <tr class="box-totals">
+                    <th colspan="2">Totals</th>
+                    <td>{{ batting.totals.ab }}</td>
+                    <td>{{ batting.totals.r }}</td>
+                    <td>{{ batting.totals.h }}</td>
+                    <td>{{ batting.totals.rbi }}</td>
+                    <td>{{ batting.totals.bb }}</td>
+                    <td>{{ batting.totals.so }}</td>
+                    <td>{{ batting.totals.hr }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if boxscore.pitching.away.rows or boxscore.pitching.home.rows %}
+      <div class="card boxscore-card">
+        <h3>Pitching</h3>
+        {% for side, team_name in [("away", game.away_team), ("home", game.home_team)] %}
+          {% set pitching = boxscore.pitching[side] %}
+          {% if pitching.rows %}
+            <h4>{{ team_name }}</h4>
+            <div class="table-scroll">
+              <table class="boxscore">
+                <thead>
+                  <tr>
+                    <th>Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>HR</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for pitcher in pitching.rows %}
+                    <tr>
+                      <td>
+                        <a href="{{ url_for('player_detail', player_id=pitcher.player_id) }}">{{ pitcher.player_name }}</a>
+                      </td>
+                      <td>{{ format_innings_pitched(pitcher.outs) }}</td>
+                      <td>{{ pitcher.h_allowed or 0 }}</td>
+                      <td>{{ pitcher.r_allowed or 0 }}</td>
+                      <td>{{ pitcher.er or 0 }}</td>
+                      <td>{{ pitcher.bb_allowed or 0 }}</td>
+                      <td>{{ pitcher.so_pitched or 0 }}</td>
+                      <td>{{ pitcher.hr_allowed or 0 }}</td>
+                      <td>{% if pitcher.pitching_decision %}{{ pitcher.pitching_decision }}{% endif %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot>
+                  <tr class="box-totals">
+                    <th>Totals</th>
+                    <td>{{ pitching.totals.innings_pitched }}</td>
+                    <td>{{ pitching.totals.h_allowed }}</td>
+                    <td>{{ pitching.totals.r_allowed }}</td>
+                    <td>{{ pitching.totals.er }}</td>
+                    <td>{{ pitching.totals.bb_allowed }}</td>
+                    <td>{{ pitching.totals.so_pitched }}</td>
+                    <td>{{ pitching.totals.hr_allowed }}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          {% endif %}
+        {% endfor %}
       </div>
     {% endif %}
     {% if home_runs %}

@@ -110,6 +110,11 @@ def test_report_record_parks_and_unmatched(db_conn):
     assert report["extremes"]["lowest_scoring"]["home_score"] + report["extremes"]["lowest_scoring"]["away_score"] == 5
     assert report["extremes"]["hottest"]["temp_f"] == 76
     assert report["extremes"]["coldest"]["temp_f"] == 76
+    duration = report["extreme_charts"]["duration"]
+    assert duration["unit"] == "min"
+    assert {point["value"] for point in duration["points"]} == {188, 210}
+    assert report["extreme_charts"]["attendance"]["points"]
+    assert report["extreme_charts"]["shutouts"]["points"]
     years = {row["year"]: row for row in report["by_year"]}
     assert years[2024]["games"] == 1
     assert years[2023]["games"] == 1
