@@ -32,6 +32,15 @@
       · {{ t.bb_allowed }} BB
     </p>
   {% endif %}
+  {% if t.fielding_games %}
+    <p>
+      {% if t.fielding_position and t.fielding_position != "—" %}{{ t.fielding_position }} · {% endif %}
+      {{ t.putouts }} PO
+      · {{ t.assists }} A
+      · {{ t.fielding_errors }} E
+      · {{ t.fpct }} FPCT
+    </p>
+  {% endif %}
 
   {% if player.games %}
     <table>

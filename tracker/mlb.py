@@ -359,7 +359,13 @@ def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
         lineup_ids = [_as_int(player_id) for player_id in team.get("battingOrder") or []]
         lineup_ids = [player_id for player_id in lineup_ids if player_id is not None]
         seen_ids: set[int] = set()
-        for raw_id in list(team.get("batters") or []) + list(team.get("pitchers") or []) + lineup_ids:
+        roster_ids = (
+            list(team.get("batters") or [])
+            + list(team.get("pitchers") or [])
+            + list(team.get("fielders") or [])
+            + lineup_ids
+        )
+        for raw_id in roster_ids:
             player_id = _as_int(raw_id)
             if player_id is None or player_id in seen_ids:
                 continue
@@ -371,6 +377,7 @@ def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
                 continue
             batting = (player.get("stats") or {}).get("batting") or {}
             pitching = (player.get("stats") or {}).get("pitching") or {}
+            fielding = (player.get("stats") or {}).get("fielding") or {}
             if player_id in lineup_ids:
                 batting_order = lineup_ids.index(player_id) + 1
                 started_game = 1
@@ -424,6 +431,16 @@ def parse_player_game_stats(feed: dict[str, Any]) -> list[dict[str, Any]]:
                     "inherited_runners": _maybe_int(pitching.get("inheritedRunners")),
                     "inherited_runners_scored": _maybe_int(pitching.get("inheritedRunnersScored")),
                     "pitching_decision": _pitching_decision(pitching),
+                    "putouts": _maybe_int(fielding.get("putOuts")),
+                    "assists": _maybe_int(fielding.get("assists")),
+                    "fielding_errors": _maybe_int(fielding.get("errors")),
+                    "chances": _maybe_int(fielding.get("chances")),
+                    "passed_balls": _maybe_int(fielding.get("passedBall")),
+                    "pickoffs": _maybe_int(fielding.get("pickoffs")),
+                    "stolen_bases_against": _maybe_int(fielding.get("stolenBases")),
+                    "caught_stealing_against": _maybe_int(fielding.get("caughtStealing")),
+                    "fielding_games_started": _maybe_int(fielding.get("gamesStarted")),
+                    "fielding_position": _fielding_position(player),
                 }
             )
     return rows
@@ -506,6 +523,17 @@ def _first_int(payload: dict[str, Any], *keys: str) -> int | None:
         value = _maybe_int(payload.get(key))
         if value is not None:
             return value
+    return None
+
+
+def _fielding_position(player: dict[str, Any]) -> str | None:
+    position = ((player.get("position") or {}).get("abbreviation") or "").strip()
+    if position:
+        return position
+    extras = player.get("allPositions") or []
+    if extras and isinstance(extras[0], dict):
+        extra = (extras[0].get("abbreviation") or "").strip()
+        return extra or None
     return None
 
 

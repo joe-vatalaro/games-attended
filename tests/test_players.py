@@ -4,7 +4,7 @@ from tracker import db
 from tracker.app import create_app
 from tracker.enrich import apply_feed_tables, reparse_cache
 from tracker.mlb import parse_game_details, parse_game_events, parse_player_game_stats
-from tracker.reports import build_report, list_player_summaries, parse_min_pa, player_page
+from tracker.reports import build_report, list_player_summaries, parse_min_count, parse_min_pa, player_page
 from tests.conftest import load_fixture
 
 
@@ -73,6 +73,10 @@ def test_player_summaries_and_report_highlights(db_conn):
     assert summaries[111111]["hr"] == 1
     assert summaries[111111]["batting_games"] == 1
     assert summaries[111111]["avg"] == ".500"
+    assert summaries[111111]["fielding_games"] == 1
+    assert summaries[111111]["putouts"] == 2
+    assert summaries[111111]["fielding_position"] == "RF"
+    assert summaries[111111]["fpct"] == "1.000"
     assert summaries[222222]["games_started_pitching"] == 1
     assert summaries[222222]["pitching_games"] == 1
     assert summaries[222222]["wins"] == 1
@@ -81,11 +85,22 @@ def test_player_summaries_and_report_highlights(db_conn):
     assert report["players"]["home_run_count"] == 1
     assert report["players"]["home_runs"][0]["distance"] == 412.0
     assert report["players"]["home_runs"][0]["exit_velo"] == 108.0
+    assert report["players"]["home_runs"][0]["launch_angle"] == 28.0
+    assert report["players"]["home_runs"][0]["spray_x"] == 200.0
+    assert report["players"]["home_runs"][0]["is_walkoff"] is False
     assert report["players"]["longest_home_runs"][0]["distance"] == 412.0
     assert report["players"]["most_seen"][0]["player_id"] in summaries
+    assert report["players"]["batting_nights"] == []
+    assert report["players"]["pitching_gems"] == []
+    assert report["players"]["multiple_uniforms"] == []
+    assert report["extremes"]["highest_scoring"]["home_score"] == 5
+    assert report["extremes"]["hottest"]["temp_f"] == 82
+    assert report["extremes"]["shutouts"] == 0
     page = player_page(db_conn, 111111)
     assert page["totals"]["hr"] == 1
     assert page["totals"]["slash"].startswith(".")
+    assert page["totals"]["putouts"] == 2
+    assert page["totals"]["fielding_games"] == 1
 
 
 def test_game_page_shows_lineup_and_home_run(db_conn, tmp_path):
@@ -111,6 +126,8 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "Aaron Judge" in index
     assert 'data-tab="batting"' in index
     assert 'data-tab="pitching"' in index
+    assert 'data-tab="fielding"' in index
+    assert "data-sort=\"putouts\"" in index
     assert "data-sort=\"pa\"" in index
     assert "ERA" in index
     assert "sort.js" in index
@@ -122,21 +139,141 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "108.0" in report
     assert "data-sort=\"distance\"" in report
     assert "data-sort=\"exit_velo\"" in report
+    assert "data-sort=\"launch_angle\"" in report
+    assert "spray-chart" in report
+    assert "spray-hit" in report
+    assert "spray-tooltip" in report
+    assert "Batting nights" in report
+    assert "Pitching gems" in report
+    assert "Multiple uniforms" in report
+    assert "Score and weather" in report
+
+
+def test_report_nights_gems_uniforms_and_walkoff(db_conn):
+    _seed_player_game(db_conn)
+    db.upsert_game_details(
+        db_conn,
+        {
+            "mlb_game_pk": 900002,
+            "official_date": "2024-08-01",
+            "season": 2024,
+            "game_type": "R",
+            "venue_id": 3313,
+            "venue_name": "Yankee Stadium",
+            "home_team_id": 147,
+            "away_team_id": 111,
+            "home_score": 5,
+            "away_score": 4,
+            "winning_team_id": 147,
+            "is_walkoff": 1,
+            "innings": 9,
+            "weather_temp": "90",
+            "weather_condition": "Clear",
+        },
+    )
+    db.insert_attended_game(
+        db_conn,
+        {
+            "date": "2024-08-01",
+            "home_team": "New York Yankees",
+            "away_team": "Boston Red Sox",
+            "home_team_id": 147,
+            "away_team_id": 111,
+            "mlb_game_pk": 900002,
+        },
+    )
+    db.replace_player_game_stats(
+        db_conn,
+        900002,
+        [
+            {
+                "player_id": 111111,
+                "player_name": "Nathan Lukes",
+                "team_id": 147,
+                "side": "home",
+                "started_game": 1,
+                "started_pitching": 0,
+                "h": 4,
+                "ab": 5,
+                "hr": 2,
+                "rbi": 5,
+            },
+            {
+                "player_id": 222222,
+                "player_name": "Test Starter",
+                "team_id": 111,
+                "side": "away",
+                "started_game": 1,
+                "started_pitching": 1,
+                "outs": 18,
+                "h_allowed": 1,
+                "so_pitched": 11,
+            },
+        ],
+    )
+    db.replace_game_events(
+        db_conn,
+        900002,
+        [
+            {
+                "at_bat_index": 70,
+                "event_type": "home_run",
+                "inning": 9,
+                "inning_half": "bottom",
+                "batter_id": 111111,
+                "batter_name": "Nathan Lukes",
+                "rbi": 4,
+                "description": "Nathan Lukes hits a grand slam",
+                "extra_json": json.dumps(
+                    {
+                        "totalDistance": 400,
+                        "launchSpeed": 110,
+                        "launchAngle": 30,
+                        "coordinates": {"coordX": 80, "coordY": 40},
+                    }
+                ),
+            }
+        ],
+    )
+    report = build_report(db_conn)
+    nights = report["players"]["batting_nights"]
+    assert len(nights) == 1
+    assert nights[0]["player_name"] == "Nathan Lukes"
+    assert "grand slam" in nights[0]["flags"]
+    assert "2 HR" in nights[0]["flags"]
+    gems = report["players"]["pitching_gems"]
+    assert gems[0]["player_name"] == "Test Starter"
+    assert "11 K" in gems[0]["flags"]
+    uniforms = {row["player_id"]: row for row in report["players"]["multiple_uniforms"]}
+    assert uniforms[111111]["team_count"] == 2
+    walkoffs = report["players"]["walkoff_home_runs"]
+    assert len(walkoffs) == 1
+    assert walkoffs[0]["batter_name"] == "Nathan Lukes"
+    assert report["extremes"]["hottest"]["temp_f"] == 90
 
 
 def test_players_page_filters_by_min_pa(db_conn, tmp_path):
     _seed_player_game(db_conn)
-    assert parse_min_pa("") == 0
+    assert parse_min_count("") == 0
     assert parse_min_pa("4") == 4
     assert parse_min_pa("-2") == 0
     app = create_app(db_path=tmp_path / "games.db", secret_key="test")
     with app.test_client() as flask_client:
         everyone = flask_client.get("/players").get_data(as_text=True)
         qualified = flask_client.get("/players?min_pa=5").get_data(as_text=True)
+        pitchers = flask_client.get("/players?min_bf=30").get_data(as_text=True)
     assert "Nathan Lukes" in everyone
     assert "Min PA" in everyone
-    assert "Nathan Lukes" not in qualified
+    assert "Min BF" in everyone
+    assert "Test Starter" in everyone
     assert "No batters with at least 5 PA" in qualified
+    batting_panel = qualified.split('data-report-panel="fielding"')[0]
+    assert "Nathan Lukes" not in batting_panel
+    assert "Nathan Lukes" in qualified
+    assert "No pitchers with at least 30 BF" in pitchers
+    pitching_panel = pitchers.split('data-report-panel="pitching"')[1]
+    pitching_panel = pitching_panel.split('data-report-panel="fielding"')[0]
+    assert "Test Starter" not in pitching_panel
 
 
 def test_apply_feed_tables_matches_parsers(db_conn):

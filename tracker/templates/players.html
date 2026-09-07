@@ -43,6 +43,7 @@
   <div class="report-tabs" role="tablist" aria-label="Player stats" data-report-tabs data-default-tab="batting">
     <button type="button" role="tab" id="tab-batting" data-tab="batting" aria-controls="panel-batting" aria-selected="true">Batting</button>
     <button type="button" role="tab" id="tab-pitching" data-tab="pitching" aria-controls="panel-pitching" aria-selected="false" tabindex="-1">Pitching</button>
+    <button type="button" role="tab" id="tab-fielding" data-tab="fielding" aria-controls="panel-fielding" aria-selected="false" tabindex="-1">Fielding</button>
   </div>
 
   <div id="panel-batting" class="report-panel" role="tabpanel" data-report-panel="batting" aria-labelledby="tab-batting">
@@ -57,7 +58,15 @@
     {% if pitching_players %}
       {{ player_stat_table(pitching_players, pitching_columns, "pitching_games") }}
     {% else %}
-      <p class="muted">No pitching lines in this view yet. Reparse cached games to fill them.</p>
+      <p class="muted">{% if min_bf %}No pitchers with at least {{ min_bf }} BF in this view.{% else %}No pitching lines in this view yet. Reparse cached games to fill them.{% endif %}</p>
+    {% endif %}
+  </div>
+
+  <div id="panel-fielding" class="report-panel" role="tabpanel" data-report-panel="fielding" aria-labelledby="tab-fielding">
+    {% if fielding_players %}
+      {{ player_stat_table(fielding_players, fielding_columns, "fielding_games") }}
+    {% else %}
+      <p class="muted">No fielding lines in this view yet. Reparse cached games to fill them.</p>
     {% endif %}
   </div>
 {% endblock %}

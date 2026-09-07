@@ -211,6 +211,13 @@ def _cmd_report(conn, args) -> int:
         print(f"Highest attendance: {format_score(attendance['highest'])} ({attendance['highest']['attendance']})")
     if attendance["lowest"]:
         print(f"Lowest attendance: {format_score(attendance['lowest'])} ({attendance['lowest']['attendance']})")
+    extremes = report["extremes"]
+    if extremes.get("highest_scoring"):
+        print(f"Highest scoring: {format_score(extremes['highest_scoring'])}")
+    if extremes.get("hottest") and extremes["hottest"].get("temp_f") is not None:
+        print(f"Hottest: {format_score(extremes['hottest'])} ({extremes['hottest']['temp_f']}°F)")
+    if extremes.get("coldest") and extremes["coldest"].get("temp_f") is not None:
+        print(f"Coldest: {format_score(extremes['coldest'])} ({extremes['coldest']['temp_f']}°F)")
     print("\nBy year:")
     for row in report["by_year"]:
         print(f"  {row['year']}: {row['games']} games, {format_record(row['wins'], row['losses'], row['ties'])}")
@@ -244,4 +251,19 @@ def _cmd_report(conn, args) -> int:
             distance = f" ({int(event['distance'])} ft)" if event.get("distance") else ""
             exit_velo = f" {event['exit_velo']:.1f} mph" if event.get("exit_velo") else ""
             print(f"  {event['batter_name']}: {event['description']}{distance}{exit_velo}")
+    nights = players.get("batting_nights") or []
+    if nights:
+        print(f"\nBatting nights: {len(nights)}")
+        for row in nights[:5]:
+            print(f"  {row['player_name']}: {', '.join(row['flags'])} ({row['game_date']})")
+    gems = players.get("pitching_gems") or []
+    if gems:
+        print(f"\nPitching gems: {len(gems)}")
+        for row in gems[:5]:
+            print(f"  {row['player_name']}: {', '.join(row['flags'])} ({row['game_date']})")
+    uniforms = players.get("multiple_uniforms") or []
+    if uniforms:
+        print(f"\nMultiple uniforms: {len(uniforms)} players")
+        for row in uniforms[:5]:
+            print(f"  {row['player_name']}: {row['team_labels']}")
     return 0

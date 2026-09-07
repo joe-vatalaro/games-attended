@@ -168,6 +168,12 @@ def test_parse_player_stats_and_home_run_event():
     assert lukes["hr"] == 1
     assert lukes["h"] == 2
     assert lukes["ab"] == 4
+    assert lukes["putouts"] == 2
+    assert lukes["assists"] == 1
+    assert lukes["fielding_errors"] == 0
+    assert lukes["chances"] == 3
+    assert lukes["fielding_games_started"] == 1
+    assert lukes["fielding_position"] == "RF"
     pinch = players[111113]
     assert pinch["started_game"] == 0
     assert pinch["batting_order"] == 101

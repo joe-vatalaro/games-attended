@@ -37,13 +37,17 @@ def parse_report_type_groups(values: list[str] | None, *, explicit: bool = False
     return [value for value in values or [] if value in REPORT_TYPE_GROUPS]
 
 
-def parse_min_pa(value: str | int | None) -> int:
+def parse_min_count(value: str | int | None) -> int:
     if value is None or value == "":
         return 0
     try:
         return max(0, int(value))
     except (TypeError, ValueError):
         return 0
+
+
+def parse_min_pa(value: str | int | None) -> int:
+    return parse_min_count(value)
 
 
 def allowed_game_types(type_groups: list[str] | tuple[str, ...] | None) -> set[str]:
@@ -75,7 +79,8 @@ def build_report(
                a.notes, a.mlb_game_pk,
                d.official_date, d.season, d.game_type, d.venue_id, d.venue_name, d.home_score, d.away_score,
                d.winning_team_id, d.attendance, d.duration_minutes, d.innings,
-               d.is_walkoff, d.is_extra_innings, d.is_no_hitter
+               d.is_walkoff, d.is_extra_innings, d.is_no_hitter,
+               d.weather_condition, d.weather_temp, d.weather_wind
         FROM attended_games a
         LEFT JOIN game_details d ON d.mlb_game_pk = a.mlb_game_pk
         ORDER BY COALESCE(d.official_date, a.date) DESC, a.id DESC
@@ -104,6 +109,7 @@ def build_report(
         "longest_shortest": _longest_shortest(confirmed),
         "stadiums": _stadiums(confirmed, parks_path),
         "attendance": _attendance(confirmed),
+        "extremes": _score_weather_extremes(confirmed),
         "by_year": _by_year(confirmed),
         "notable": _notable(confirmed),
         "unmatched": unmatched,
@@ -410,6 +416,15 @@ PLAYER_COUNT_KEYS = (
     "shutouts",
     "inherited_runners",
     "inherited_runners_scored",
+    "putouts",
+    "assists",
+    "fielding_errors",
+    "chances",
+    "passed_balls",
+    "pickoffs",
+    "stolen_bases_against",
+    "caught_stealing_against",
+    "fielding_games_started",
 )
 
 
@@ -475,6 +490,22 @@ PITCHING_TABLE_COLUMNS = [
     _stat_column("bb9", "BB/9", "bb9_value"),
 ]
 
+FIELDING_TABLE_COLUMNS = [
+    _stat_column("fielding_games", "G"),
+    _stat_column("fielding_games_started", "GS"),
+    _stat_column("fielding_position", "POS"),
+    _stat_column("putouts", "PO"),
+    _stat_column("assists", "A"),
+    _stat_column("fielding_errors", "E"),
+    _stat_column("chances", "TC"),
+    _stat_column("fpct", "FPCT", "fpct_value"),
+    _stat_column("passed_balls", "PB"),
+    _stat_column("caught_stealing_against", "CS"),
+    _stat_column("stolen_bases_against", "SBA"),
+    _stat_column("pickoffs", "PK"),
+    _stat_column("cs_pct", "CS%", "cs_pct_value"),
+]
+
 
 def _enrich_player_rates(item: dict[str, Any]) -> dict[str, Any]:
     hits = item.get("h") or 0
@@ -519,18 +550,68 @@ def _enrich_player_rates(item: dict[str, Any]) -> dict[str, Any]:
     item["whip"] = format_rate(whip_value, 2, leading_zero=True)
     item["k9"] = format_rate(k9_value, 1, leading_zero=True)
     item["bb9"] = format_rate(bb9_value, 1, leading_zero=True)
+    putouts = item.get("putouts") or 0
+    assists = item.get("assists") or 0
+    fielding_errors = item.get("fielding_errors") or 0
+    fpct_value = _ratio(putouts + assists, putouts + assists + fielding_errors)
+    caught = item.get("caught_stealing_against") or 0
+    stolen = item.get("stolen_bases_against") or 0
+    cs_pct_value = _ratio(caught, caught + stolen)
+    item["fpct_value"] = fpct_value
+    item["cs_pct_value"] = cs_pct_value
+    item["fpct"] = format_rate(fpct_value)
+    item["cs_pct"] = format_rate(cs_pct_value)
+    item["fielding_position"] = _primary_fielding_position(
+        item.get("fielding_positions") or item.get("fielding_position")
+    )
     return item
 
 
-def event_hit_stat(event: dict[str, Any], key: str) -> float | None:
+SKIP_FIELDING_POSITIONS = {"DH", "PH", "PR"}
+
+
+def _primary_fielding_position(raw: str | None) -> str:
+    if not raw:
+        return "—"
+    counts: dict[str, int] = {}
+    for part in str(raw).split(","):
+        position = part.strip()
+        if not position or position in SKIP_FIELDING_POSITIONS:
+            continue
+        counts[position] = counts.get(position, 0) + 1
+    if not counts:
+        return "—"
+    return sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0][0]
+
+
+def _fielded(row: dict[str, Any]) -> bool:
+    return any(
+        int(row.get(key) or 0)
+        for key in (
+            "putouts",
+            "assists",
+            "fielding_errors",
+            "chances",
+            "fielding_games_started",
+            "passed_balls",
+            "pickoffs",
+        )
+    )
+
+
+def event_hit_data(event: dict[str, Any]) -> dict[str, Any]:
     raw = event.get("extra_json")
     if not raw:
-        return None
+        return {}
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
     except json.JSONDecodeError:
-        return None
-    value = data.get(key)
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def event_hit_stat(event: dict[str, Any], key: str) -> float | None:
+    value = event_hit_data(event).get(key)
     if value is None or value == "":
         return None
     return float(value)
@@ -542,6 +623,83 @@ def event_hit_distance(event: dict[str, Any]) -> float | None:
 
 def event_exit_velo(event: dict[str, Any]) -> float | None:
     return event_hit_stat(event, "launchSpeed")
+
+
+def event_launch_angle(event: dict[str, Any]) -> float | None:
+    return event_hit_stat(event, "launchAngle")
+
+
+def event_spray_point(event: dict[str, Any]) -> tuple[float, float] | None:
+    coords = event_hit_data(event).get("coordinates") or {}
+    if not isinstance(coords, dict):
+        return None
+    x = coords.get("coordX")
+    y = coords.get("coordY")
+    if x is None or y is None or x == "" or y == "":
+        return None
+    return float(x), float(y)
+
+
+def event_is_walkoff_hr(event: dict[str, Any]) -> bool:
+    if not event.get("game_is_walkoff"):
+        return False
+    if event.get("inning_half") != "bottom":
+        return False
+    inning = event.get("inning")
+    if inning is None:
+        return False
+    game_innings = event.get("game_innings")
+    if game_innings:
+        return inning == game_innings
+    return inning >= 9
+
+
+def _weather_temp_f(game: dict[str, Any]) -> int | None:
+    raw = game.get("weather_temp")
+    if raw is None or raw == "":
+        return None
+    try:
+        return int(str(raw).split()[0])
+    except ValueError:
+        return None
+
+
+def _combined_runs(game: dict[str, Any]) -> int | None:
+    home = game.get("home_score")
+    away = game.get("away_score")
+    if home is None or away is None:
+        return None
+    return home + away
+
+
+def _run_margin(game: dict[str, Any]) -> int | None:
+    home = game.get("home_score")
+    away = game.get("away_score")
+    if home is None or away is None:
+        return None
+    return abs(home - away)
+
+
+def _score_weather_extremes(games: list[dict[str, Any]]) -> dict[str, Any]:
+    scored = [game for game in games if _combined_runs(game) is not None]
+    with_temp = []
+    for game in games:
+        temp = _weather_temp_f(game)
+        if temp is None:
+            continue
+        with_temp.append({**game, "temp_f": temp})
+    return {
+        "highest_scoring": max(scored, key=_combined_runs, default=None),
+        "lowest_scoring": min(scored, key=_combined_runs, default=None),
+        "biggest_margin": max(scored, key=_run_margin, default=None),
+        "hottest": max(with_temp, key=lambda game: game["temp_f"], default=None),
+        "coldest": min(with_temp, key=lambda game: game["temp_f"], default=None),
+        "shutouts": sum(
+            1
+            for game in scored
+            if game.get("home_score") == 0 or game.get("away_score") == 0
+        ),
+    }
 
 
 def _type_filter_sql(type_groups: list[str] | tuple[str, ...] | None) -> tuple[str, list[Any]]:
@@ -583,6 +741,11 @@ def list_player_summaries(
             SUM(CASE WHEN COALESCE(p.pa, 0) > 0 THEN 1 ELSE 0 END) AS batting_games,
             SUM(CASE WHEN COALESCE(p.outs, 0) > 0 OR p.started_pitching = 1
                 OR p.pitching_decision IS NOT NULL THEN 1 ELSE 0 END) AS pitching_games,
+            SUM(CASE WHEN COALESCE(p.putouts, 0) + COALESCE(p.assists, 0)
+                + COALESCE(p.fielding_errors, 0) + COALESCE(p.chances, 0)
+                + COALESCE(p.fielding_games_started, 0) + COALESCE(p.passed_balls, 0)
+                + COALESCE(p.pickoffs, 0) > 0 THEN 1 ELSE 0 END) AS fielding_games,
+            GROUP_CONCAT(p.fielding_position) AS fielding_positions,
             SUM(CASE WHEN p.pitching_decision = 'W' THEN 1 ELSE 0 END) AS wins,
             SUM(CASE WHEN p.pitching_decision = 'L' THEN 1 ELSE 0 END) AS losses,
             SUM(CASE WHEN p.pitching_decision = 'S' THEN 1 ELSE 0 END) AS saves,
@@ -661,7 +824,8 @@ def list_home_runs(
     rows = conn.execute(
         f"""
         SELECT e.*, a.id AS attended_id, a.home_team, a.away_team,
-               COALESCE(d.official_date, a.date) AS game_date, d.venue_name
+               COALESCE(d.official_date, a.date) AS game_date, d.venue_name,
+               d.is_walkoff AS game_is_walkoff, d.innings AS game_innings
         FROM game_events e
         JOIN attended_games a ON a.mlb_game_pk = e.mlb_game_pk
         JOIN game_details d ON d.mlb_game_pk = e.mlb_game_pk
@@ -673,10 +837,179 @@ def list_home_runs(
     events = []
     for row in rows:
         item = dict(row)
-        item["distance"] = event_hit_distance(item)
-        item["exit_velo"] = event_exit_velo(item)
+        hit = event_hit_data(item)
+        item["distance"] = event_hit_stat(item, "totalDistance")
+        item["exit_velo"] = event_hit_stat(item, "launchSpeed")
+        item["launch_angle"] = event_hit_stat(item, "launchAngle")
+        item["trajectory"] = hit.get("trajectory")
+        point = event_spray_point(item)
+        item["spray_x"] = point[0] if point else None
+        item["spray_y"] = point[1] if point else None
+        item["is_walkoff"] = event_is_walkoff_hr(item)
         events.append(item)
     return events
+
+
+def list_batting_nights(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    slam_rows = conn.execute(
+        f"""
+        SELECT e.mlb_game_pk, e.batter_id
+        FROM game_events e
+        JOIN attended_games a ON a.mlb_game_pk = e.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = e.mlb_game_pk
+        WHERE e.event_type = 'home_run' AND e.rbi = 4 AND {where}
+        """,
+        params,
+    ).fetchall()
+    slams = {(row["mlb_game_pk"], row["batter_id"]) for row in slam_rows}
+    rows = conn.execute(
+        f"""
+        SELECT p.mlb_game_pk, p.player_id, p.player_name, p.h, p.ab, p.hr, p.rbi,
+               p.doubles, p.triples, a.id AS attended_id, a.home_team, a.away_team,
+               COALESCE(d.official_date, a.date) AS game_date
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where}
+          AND (
+            COALESCE(p.hr, 0) >= 2
+            OR COALESCE(p.h, 0) >= 4
+            OR COALESCE(p.rbi, 0) >= 4
+          )
+        ORDER BY COALESCE(p.hr, 0) DESC, COALESCE(p.rbi, 0) DESC,
+                 COALESCE(p.h, 0) DESC, game_date DESC
+        """,
+        params,
+    ).fetchall()
+    nights = []
+    for row in rows:
+        item = dict(row)
+        item["grand_slam"] = (item["mlb_game_pk"], item["player_id"]) in slams
+        item["flags"] = _batting_night_flags(item)
+        nights.append(item)
+    return nights
+
+
+def _batting_night_flags(row: dict[str, Any]) -> list[str]:
+    flags: list[str] = []
+    if row.get("grand_slam"):
+        flags.append("grand slam")
+    hr = row.get("hr") or 0
+    if hr >= 2:
+        flags.append(f"{hr} HR")
+    hits = row.get("h") or 0
+    at_bats = row.get("ab")
+    if hits >= 4:
+        flags.append(f"{hits}-{at_bats}" if at_bats is not None else f"{hits} H")
+    rbi = row.get("rbi") or 0
+    if rbi >= 4:
+        flags.append(f"{rbi} RBI")
+    return flags
+
+
+def list_pitching_gems(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT p.player_id, p.player_name, p.outs, p.h_allowed, p.so_pitched,
+               p.er, p.complete_games, p.shutouts, p.started_pitching,
+               a.id AS attended_id, a.home_team, a.away_team,
+               COALESCE(d.official_date, a.date) AS game_date
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where}
+          AND (
+            COALESCE(p.so_pitched, 0) >= 9
+            OR (
+              COALESCE(p.outs, 0) >= 15
+              AND p.h_allowed IS NOT NULL
+              AND p.h_allowed <= 2
+            )
+            OR COALESCE(p.complete_games, 0) > 0
+            OR COALESCE(p.shutouts, 0) > 0
+          )
+        ORDER BY COALESCE(p.so_pitched, 0) DESC, COALESCE(p.h_allowed, 99) ASC,
+                 game_date DESC
+        """,
+        params,
+    ).fetchall()
+    gems = []
+    for row in rows:
+        item = dict(row)
+        item["innings_pitched"] = format_innings_pitched(item.get("outs"))
+        item["flags"] = _pitching_gem_flags(item)
+        gems.append(item)
+    return gems
+
+
+def _pitching_gem_flags(row: dict[str, Any]) -> list[str]:
+    flags: list[str] = []
+    strikeouts = row.get("so_pitched") or 0
+    if strikeouts >= 9:
+        flags.append(f"{strikeouts} K")
+    outs = row.get("outs") or 0
+    hits = row.get("h_allowed")
+    if outs >= 15 and hits is not None and hits <= 2:
+        flags.append(f"{hits} H in {format_innings_pitched(outs)}")
+    if row.get("complete_games"):
+        flags.append("CG")
+    if row.get("shutouts"):
+        flags.append("SHO")
+    return flags
+
+
+def list_multiple_uniforms(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT p.player_id, MAX(p.player_name) AS player_name,
+               COUNT(DISTINCT p.team_id) AS team_count,
+               COUNT(*) AS games_seen
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where} AND p.team_id IS NOT NULL
+        GROUP BY p.player_id
+        HAVING team_count >= 2
+        ORDER BY team_count DESC, games_seen DESC, player_name
+        """,
+        params,
+    ).fetchall()
+    team_rows = conn.execute(
+        f"""
+        SELECT DISTINCT p.player_id, p.team_id
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where} AND p.team_id IS NOT NULL
+        ORDER BY p.player_id, p.team_id
+        """,
+        params,
+    ).fetchall()
+    teams_by_player: dict[int, list[str]] = defaultdict(list)
+    for row in team_rows:
+        team = team_by_id(row["team_id"])
+        label = team.abbreviation if team else str(row["team_id"])
+        if label not in teams_by_player[row["player_id"]]:
+            teams_by_player[row["player_id"]].append(label)
+    uniforms = []
+    for row in rows:
+        item = dict(row)
+        item["teams"] = teams_by_player.get(item["player_id"], [])
+        item["team_labels"] = ", ".join(item["teams"])
+        uniforms.append(item)
+    return uniforms
 
 
 def player_highlights(
@@ -699,6 +1032,11 @@ def player_highlights(
         "home_runs": by_distance,
         "home_run_count": len(home_runs),
         "longest_home_runs": by_distance,
+        "spray_count": sum(1 for event in home_runs if event.get("spray_x") is not None),
+        "walkoff_home_runs": [event for event in by_distance if event.get("is_walkoff")],
+        "batting_nights": list_batting_nights(conn, type_groups),
+        "pitching_gems": list_pitching_gems(conn, type_groups),
+        "multiple_uniforms": list_multiple_uniforms(conn, type_groups),
     }
 
 
@@ -783,6 +1121,10 @@ def _sum_player_lines(rows: list[dict[str, Any]]) -> dict[str, Any]:
     totals["games_seen"] = len(rows)
     totals["games_started"] = sum(int(row.get("started_game") or 0) for row in rows)
     totals["games_started_pitching"] = sum(int(row.get("started_pitching") or 0) for row in rows)
+    totals["fielding_games"] = sum(1 for row in rows if _fielded(row))
+    totals["fielding_positions"] = ",".join(
+        row["fielding_position"] for row in rows if row.get("fielding_position")
+    )
     for row in rows:
         for key in PLAYER_COUNT_KEYS:
             totals[key] += int(row.get(key) or 0)

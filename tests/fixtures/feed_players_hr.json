@@ -29,7 +29,19 @@
             "ID111111": {
               "person": {"id": 111111, "fullName": "Nathan Lukes"},
               "battingOrder": "100",
+              "position": {"abbreviation": "RF"},
               "stats": {
+                "fielding": {
+                  "gamesStarted": 1,
+                  "putOuts": 2,
+                  "assists": 1,
+                  "errors": 0,
+                  "chances": 3,
+                  "passedBall": 0,
+                  "pickoffs": 0,
+                  "stolenBases": 0,
+                  "caughtStealing": 0
+                },
                 "batting": {
                   "plateAppearances": 4,
                   "atBats": 4,
@@ -116,7 +128,19 @@
             "ID444444": {
               "person": {"id": 444444, "fullName": "Aaron Judge"},
               "battingOrder": "100",
+              "position": {"abbreviation": "CF"},
               "stats": {
+                "fielding": {
+                  "gamesStarted": 1,
+                  "putOuts": 3,
+                  "assists": 0,
+                  "errors": 1,
+                  "chances": 4,
+                  "passedBall": 0,
+                  "pickoffs": 0,
+                  "stolenBases": 0,
+                  "caughtStealing": 0
+                },
                 "batting": {
                   "plateAppearances": 4,
                   "atBats": 4,
@@ -139,6 +163,7 @@
                 "pitching": {
                   "gamesStarted": 1,
                   "outs": 18,
+                  "battersFaced": 24,
                   "hits": 5,
                   "runs": 2,
                   "earnedRuns": 2,
@@ -185,7 +210,8 @@
               "hitData": {
                 "launchSpeed": 108.0,
                 "launchAngle": 28.0,
-                "totalDistance": 412.0
+                "totalDistance": 412.0,
+                "coordinates": {"coordX": 200.0, "coordY": 60.0}
               }
             }
           ]

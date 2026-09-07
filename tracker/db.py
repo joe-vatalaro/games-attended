@@ -111,6 +111,16 @@ CREATE TABLE IF NOT EXISTS player_game_stats (
     inherited_runners INTEGER,
     inherited_runners_scored INTEGER,
     pitching_decision TEXT,
+    putouts INTEGER,
+    assists INTEGER,
+    fielding_errors INTEGER,
+    chances INTEGER,
+    passed_balls INTEGER,
+    pickoffs INTEGER,
+    stolen_bases_against INTEGER,
+    caught_stealing_against INTEGER,
+    fielding_games_started INTEGER,
+    fielding_position TEXT,
     PRIMARY KEY (mlb_game_pk, player_id)
 );
 
@@ -237,6 +247,11 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         for column in PLAYER_STAT_V5_COLUMNS:
             _add_column_if_missing(conn, "player_game_stats", column, "INTEGER")
         conn.execute("PRAGMA user_version = 5")
+    if current < 6:
+        for column in PLAYER_STAT_V6_INT_COLUMNS:
+            _add_column_if_missing(conn, "player_game_stats", column, "INTEGER")
+        _add_column_if_missing(conn, "player_game_stats", "fielding_position", "TEXT")
+        conn.execute("PRAGMA user_version = 6")
     conn.commit()
 
 
@@ -483,6 +498,16 @@ PLAYER_STAT_COLUMNS = [
     "inherited_runners",
     "inherited_runners_scored",
     "pitching_decision",
+    "putouts",
+    "assists",
+    "fielding_errors",
+    "chances",
+    "passed_balls",
+    "pickoffs",
+    "stolen_bases_against",
+    "caught_stealing_against",
+    "fielding_games_started",
+    "fielding_position",
 ]
 
 PLAYER_STAT_V5_COLUMNS = [
@@ -503,6 +528,18 @@ PLAYER_STAT_V5_COLUMNS = [
     "shutouts",
     "inherited_runners",
     "inherited_runners_scored",
+]
+
+PLAYER_STAT_V6_INT_COLUMNS = [
+    "putouts",
+    "assists",
+    "fielding_errors",
+    "chances",
+    "passed_balls",
+    "pickoffs",
+    "stolen_bases_against",
+    "caught_stealing_against",
+    "fielding_games_started",
 ]
 
 GAME_EVENT_COLUMNS = [

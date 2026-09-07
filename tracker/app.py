@@ -19,6 +19,7 @@ from tracker.mlb import MlbClient, MlbError, game_type_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
 from tracker.reports import (
     BATTING_TABLE_COLUMNS,
+    FIELDING_TABLE_COLUMNS,
     PITCHING_TABLE_COLUMNS,
     build_report,
     format_innings_pitched,
@@ -26,7 +27,7 @@ from tracker.reports import (
     format_score,
     format_slash,
     list_player_summaries,
-    parse_min_pa,
+    parse_min_count,
     parse_report_type_groups,
     player_page,
 )
@@ -295,7 +296,8 @@ def create_app(
     @app.route("/players")
     def players():
         selected = _selected_type_groups()
-        min_pa = parse_min_pa(request.args.get("min_pa"))
+        min_pa = parse_min_count(request.args.get("min_pa"))
+        min_bf = parse_min_count(request.args.get("min_bf"))
         conn = get_conn()
         rows = list_player_summaries(conn, selected)
         conn.close()
@@ -304,11 +306,18 @@ def create_app(
             batting_players=[
                 row for row in rows if row["batting_games"] and row["pa"] >= min_pa
             ],
-            pitching_players=[row for row in rows if row["pitching_games"]],
+            pitching_players=[
+                row
+                for row in rows
+                if row["pitching_games"] and (row.get("bf") or 0) >= min_bf
+            ],
+            fielding_players=[row for row in rows if row["fielding_games"]],
             batting_columns=BATTING_TABLE_COLUMNS,
             pitching_columns=PITCHING_TABLE_COLUMNS,
+            fielding_columns=FIELDING_TABLE_COLUMNS,
             type_groups=selected,
             min_pa=min_pa,
+            min_bf=min_bf,
         )
 
     @app.route("/players/<int:player_id>")

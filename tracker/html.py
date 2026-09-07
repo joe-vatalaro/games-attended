@@ -42,12 +42,16 @@ def render_report_html(report: dict) -> str:
                 ]
             ),
         ),
+        _section("Score and weather", _extremes_table(report["extremes"])),
         _section("By year", _year_table(report["by_year"])),
         _section("Honors seen", _honors_html(report["honors"])),
         _section("Notable", _notable_list(report["notable"])),
         _section("Most seen players", _player_seen_table(report["players"]["most_seen"])),
         _section("Starting pitchers seen", _starter_table(report["players"]["starters"])),
         _section("Home runs seen", _home_run_block(report["players"])),
+        _section("Batting nights", _batting_nights_block(report["players"])),
+        _section("Pitching gems", _pitching_gems_block(report["players"])),
+        _section("Multiple uniforms", _uniforms_block(report["players"])),
     ]
     if report["unmatched"]:
         sections.append(
@@ -218,8 +222,108 @@ def _home_run_block(players: dict) -> str:
     longest = players.get("home_runs") or players.get("longest_home_runs") or []
     items = []
     for event in longest:
-        distance = f" — {int(event['distance'])} ft" if event.get("distance") else ""
-        exit_velo = f" — {event['exit_velo']:.1f} mph" if event.get("exit_velo") else ""
-        items.append(f"{event.get('batter_name')}: {event.get('description') or ''}{distance}{exit_velo}")
+        bits = []
+        if event.get("distance"):
+            bits.append(f"{int(event['distance'])} ft")
+        if event.get("exit_velo"):
+            bits.append(f"{event['exit_velo']:.1f} mph")
+        if event.get("launch_angle") is not None:
+            bits.append(f"{int(event['launch_angle'])}°")
+        if event.get("is_walkoff"):
+            bits.append("walk-off")
+        suffix = f" — {' · '.join(bits)}" if bits else ""
+        items.append(f"{event.get('batter_name')}: {event.get('description') or ''}{suffix}")
     extra = _simple_list(items, lambda item: item) if items else ""
     return f"<p>{count} home runs seen.</p>{extra}"
+
+
+def _extremes_table(extremes: dict) -> str:
+    high = extremes.get("highest_scoring")
+    low = extremes.get("lowest_scoring")
+    margin = extremes.get("biggest_margin")
+    hottest = extremes.get("hottest")
+    coldest = extremes.get("coldest")
+    high_runs = _combined_label(high)
+    low_runs = _combined_label(low)
+    margin_runs = None
+    if margin and margin.get("home_score") is not None and margin.get("away_score") is not None:
+        margin_runs = abs(margin["home_score"] - margin["away_score"])
+    return _kv_table(
+        [
+            ("Highest scoring", _game_note(high, f"{high_runs} runs" if high_runs is not None else None)),
+            ("Lowest scoring", _game_note(low, f"{low_runs} runs" if low_runs is not None else None)),
+            ("Biggest margin", _game_note(margin, f"{margin_runs} runs" if margin_runs is not None else None)),
+            ("Hottest", _weather_line(hottest)),
+            ("Coldest", _weather_line(coldest)),
+            ("Shutouts", str(extremes.get("shutouts") or 0)),
+        ]
+    )
+
+
+def _combined_label(game: dict | None) -> int | None:
+    if not game or game.get("home_score") is None or game.get("away_score") is None:
+        return None
+    return game["home_score"] + game["away_score"]
+
+
+def _game_note(game: dict | None, extra: str | None) -> str:
+    if not game:
+        return "—"
+    line = format_score(game)
+    return f"{line} ({extra})" if extra else line
+
+
+def _weather_line(game: dict | None) -> str:
+    if not game:
+        return "—"
+    bits = [format_score(game)]
+    detail = []
+    if game.get("temp_f") is not None:
+        detail.append(f"{game['temp_f']}°F")
+    if game.get("weather_condition"):
+        detail.append(game["weather_condition"])
+    if game.get("venue_name"):
+        detail.append(game["venue_name"])
+    if detail:
+        bits.append(f"({', '.join(detail)})")
+    return " ".join(bits)
+
+
+def _batting_nights_block(players: dict) -> str:
+    rows = players.get("batting_nights") or []
+    if not rows:
+        return "<p>No multi-HR, 4-hit, or 4-RBI lines in this view.</p>"
+    items = []
+    for row in rows:
+        flags = ", ".join(row.get("flags") or [])
+        items.append(
+            f"{row.get('player_name')}: {row.get('h')}-{row.get('ab')} "
+            f"({flags}) — {row.get('game_date')} {row.get('away_team')} @ {row.get('home_team')}"
+        )
+    return f"<p>{len(rows)} notable batting lines.</p>" + _simple_list(items, lambda item: item)
+
+
+def _pitching_gems_block(players: dict) -> str:
+    rows = players.get("pitching_gems") or []
+    if not rows:
+        return "<p>No 9-K, low-hit, or complete-game lines in this view.</p>"
+    items = []
+    for row in rows:
+        flags = ", ".join(row.get("flags") or [])
+        items.append(
+            f"{row.get('player_name')}: {row.get('innings_pitched')} IP, "
+            f"{row.get('h_allowed')} H, {row.get('so_pitched') or 0} K ({flags}) — "
+            f"{row.get('game_date')} {row.get('away_team')} @ {row.get('home_team')}"
+        )
+    return f"<p>{len(rows)} pitching gems.</p>" + _simple_list(items, lambda item: item)
+
+
+def _uniforms_block(players: dict) -> str:
+    rows = players.get("multiple_uniforms") or []
+    if not rows:
+        return "<p>No player has been seen with more than one club in this view.</p>"
+    items = [
+        f"{row.get('player_name')}: {row.get('team_labels')} ({row.get('games_seen')} games)"
+        for row in rows
+    ]
+    return f"<p>{len(rows)} players seen with two or more clubs.</p>" + _simple_list(items, lambda item: item)
