@@ -2,6 +2,19 @@
 {% block title %}{{ player.player_name }}{% endblock %}
 {% block body %}
   <h2>{{ player.player_name }}</h2>
+  {% set br_player = baseball_reference_player_url(player.player_id) %}
+  {% set savant_player = baseball_savant_player_url(player.player_id) %}
+  {% if br_player or savant_player %}
+    <p class="muted">
+      {% if br_player %}
+        <a class="external" href="{{ br_player }}" target="_blank" rel="noopener noreferrer">Baseball Reference</a>
+      {% endif %}
+      {% if br_player and savant_player %} · {% endif %}
+      {% if savant_player %}
+        <a class="external" href="{{ savant_player }}" target="_blank" rel="noopener noreferrer">Baseball Savant</a>
+      {% endif %}
+    </p>
+  {% endif %}
   {% if player.honors %}
     <p>
       {% for honor in player.honors %}

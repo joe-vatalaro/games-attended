@@ -17,6 +17,12 @@ from tracker.enrich import (
 )
 from tracker.mlb import MlbClient, MlbError, game_type_label
 from tracker.paths import DB_PATH, SECRET_KEY_PATH, ensure_data_dirs
+from tracker.br import (
+    baseball_reference_game_url,
+    baseball_reference_player_url,
+    baseball_savant_game_url,
+    baseball_savant_player_url,
+)
 from tracker.reports import (
     BATTING_TABLE_COLUMNS,
     FIELDING_TABLE_COLUMNS,
@@ -57,6 +63,10 @@ def create_app(
             "format_innings_pitched": format_innings_pitched,
             "team_by_id": team_by_id,
             "game_type_label": game_type_label,
+            "baseball_reference_player_url": baseball_reference_player_url,
+            "baseball_reference_game_url": baseball_reference_game_url,
+            "baseball_savant_player_url": baseball_savant_player_url,
+            "baseball_savant_game_url": baseball_savant_game_url,
         }
 
     @app.route("/")

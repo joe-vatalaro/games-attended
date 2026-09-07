@@ -3,10 +3,18 @@
 {% block body %}
   <h2>{{ game.away_team }} @ {{ game.home_team }}</h2>
   {% set series = game_type_label(game.game_type, series_description=game.series_description, series_game_number=game.series_game_number) %}
+  {% set br_game = baseball_reference_game_url(game) %}
+  {% set savant_game = baseball_savant_game_url(game) %}
   <p class="muted">
     {{ game.official_date or game.date }}
     {% if series %} · {{ series }}{% endif %}
     · {{ game.mlb_venue or game.venue or "Venue unknown" }}
+    {% if br_game %}
+      · <a class="external" href="{{ br_game }}" target="_blank" rel="noopener noreferrer">Baseball Reference</a>
+    {% endif %}
+    {% if savant_game %}
+      · <a class="external" href="{{ savant_game }}" target="_blank" rel="noopener noreferrer">Baseball Savant</a>
+    {% endif %}
   </p>
 
   {% if game.home_score is not none %}

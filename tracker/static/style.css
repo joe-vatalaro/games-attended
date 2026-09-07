@@ -22,6 +22,22 @@ body {
 
 a { color: var(--navy); }
 
+a.external {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28em;
+}
+
+a.external::after {
+  content: "";
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4'/%3E%3Cpath d='M14 4h6v6M20 4L10 14'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4'/%3E%3Cpath d='M14 4h6v6M20 4L10 14'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
 .wrap {
   max-width: 920px;
   margin: 0 auto;

@@ -19,30 +19,13 @@ def render_report_html(report: dict) -> str:
         _section("By team seen", _team_table(report["by_team"])),
         _section("Teams", _teams_html(report["teams"])),
         _section(
-            "Longest and shortest",
-            _kv_table(
-                [
-                    ("Longest (time)", _game_line(longest.get("longest_duration"), "duration_minutes", "min")),
-                    ("Shortest (time)", _game_line(longest.get("shortest_duration"), "duration_minutes", "min")),
-                    ("Longest (innings)", _game_line(longest.get("longest_innings"), "innings", "inn")),
-                    ("Shortest (innings)", _game_line(longest.get("shortest_innings"), "innings", "inn")),
-                ]
-            ),
+            "Extremes",
+            _extremes_table(longest, attendance, report["extremes"]),
         ),
         _section(
             "Stadiums",
             _stadiums_html(stadiums),
         ),
-        _section(
-            "Attendance",
-            _kv_table(
-                [
-                    ("Highest", _game_line(attendance.get("highest"), "attendance", "fans")),
-                    ("Lowest", _game_line(attendance.get("lowest"), "attendance", "fans")),
-                ]
-            ),
-        ),
-        _section("Score and weather", _extremes_table(report["extremes"])),
         _section("By year", _year_table(report["by_year"])),
         _section("Honors seen", _honors_html(report["honors"])),
         _section("Notable", _notable_list(report["notable"])),
@@ -237,7 +220,7 @@ def _home_run_block(players: dict) -> str:
     return f"<p>{count} home runs seen.</p>{extra}"
 
 
-def _extremes_table(extremes: dict) -> str:
+def _extremes_table(longest: dict, attendance: dict, extremes: dict) -> str:
     high = extremes.get("highest_scoring")
     low = extremes.get("lowest_scoring")
     margin = extremes.get("biggest_margin")
@@ -250,6 +233,12 @@ def _extremes_table(extremes: dict) -> str:
         margin_runs = abs(margin["home_score"] - margin["away_score"])
     return _kv_table(
         [
+            ("Longest (time)", _game_line(longest.get("longest_duration"), "duration_minutes", "min")),
+            ("Shortest (time)", _game_line(longest.get("shortest_duration"), "duration_minutes", "min")),
+            ("Longest (innings)", _game_line(longest.get("longest_innings"), "innings", "inn")),
+            ("Shortest (innings)", _game_line(longest.get("shortest_innings"), "innings", "inn")),
+            ("Highest attendance", _game_line(attendance.get("highest"), "attendance", "fans")),
+            ("Lowest attendance", _game_line(attendance.get("lowest"), "attendance", "fans")),
             ("Highest scoring", _game_note(high, f"{high_runs} runs" if high_runs is not None else None)),
             ("Lowest scoring", _game_note(low, f"{low_runs} runs" if low_runs is not None else None)),
             ("Biggest margin", _game_note(margin, f"{margin_runs} runs" if margin_runs is not None else None)),

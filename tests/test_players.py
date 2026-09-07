@@ -113,6 +113,8 @@ def test_game_page_shows_lineup_and_home_run(db_conn, tmp_path):
     assert "Nathan Lukes homers (8)" in html
     assert "top 3" in html
     assert "/players/111111" in html
+    assert "boxes/NYA/NYA202407040.shtml" in html
+    assert "gamefeed?gamePk=900001" in html
 
 
 def test_players_and_player_pages(db_conn, tmp_path):
@@ -133,6 +135,9 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "sort.js" in index
     assert "2-4" in detail
     assert "1 HR" in detail
+    assert "mlb_ID=111111" in detail
+    assert "baseball-reference.com" in detail
+    assert "savant-player/111111" in detail
     assert "Most seen players" in report
     assert "Home runs seen" in report
     assert "412" in report
@@ -146,7 +151,9 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "Batting nights" in report
     assert "Pitching gems" in report
     assert "Multiple uniforms" in report
-    assert "Score and weather" in report
+    assert "Extremes" in report
+    assert "Longest (time)" in report
+    assert "Highest attendance" in report
 
 
 def test_report_nights_gems_uniforms_and_walkoff(db_conn):
