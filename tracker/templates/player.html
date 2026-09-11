@@ -15,6 +15,9 @@
       {% endif %}
     </p>
   {% endif %}
+  {% if player.birthplace %}
+    <p class="muted">Born in {{ player.birthplace }}</p>
+  {% endif %}
   {% if player.honors %}
     <p>
       {% for honor in player.honors %}

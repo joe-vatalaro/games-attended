@@ -30,11 +30,13 @@ def render_report_html(report: dict) -> str:
         _section("Honors seen", _honors_html(report["honors"])),
         _section("Notable", _notable_list(report["notable"])),
         _section("Most seen players", _player_seen_table(report["players"]["most_seen"])),
+        _section("Depth chart", _depth_chart_block(report["players"].get("depth_chart") or [])),
         _section("Starting pitchers seen", _starter_table(report["players"]["starters"])),
         _section("Home runs seen", _home_run_block(report["players"])),
         _section("Batting nights", _batting_nights_block(report["players"])),
         _section("Pitching gems", _pitching_gems_block(report["players"])),
         _section("Multiple uniforms", _uniforms_block(report["players"])),
+        _section("Nationalities represented", _nationalities_block(report["players"])),
     ]
     if report["unmatched"]:
         sections.append(
@@ -185,6 +187,20 @@ def _player_seen_table(rows: list[dict]) -> str:
     )
 
 
+def _depth_chart_block(slots: list[dict]) -> str:
+    filled = [slot for slot in slots if slot.get("players")]
+    if not filled:
+        return "<p>No positions logged in this view yet.</p>"
+    blocks = []
+    for slot in filled:
+        names = _simple_list(
+            slot["players"],
+            lambda player: f"{player['player_name']} ({player['games']})",
+        )
+        blocks.append(f"<h3>{slot['label']}</h3>{names}")
+    return "".join(blocks)
+
+
 def _starter_table(rows: list[dict]) -> str:
     if not rows:
         return "<p>No starting pitchers in this view.</p>"
@@ -316,3 +332,24 @@ def _uniforms_block(players: dict) -> str:
         for row in rows
     ]
     return f"<p>{len(rows)} players seen with two or more clubs.</p>" + _simple_list(items, lambda item: item)
+
+
+def _nationalities_block(players: dict) -> str:
+    payload = players.get("nationalities") or {}
+    if not payload.get("loaded"):
+        return "<p>No birth countries loaded yet. Run <code>python -m tracker profiles</code>.</p>"
+    countries = payload.get("countries") or []
+    if not countries:
+        return "<p>No players in this view.</p>"
+    lines = [
+        f"{payload.get('country_count') or 0} birth countries among "
+        f"{payload.get('player_count') or 0} players"
+        f" ({payload.get('international_count') or 0} born outside the USA)."
+    ]
+    if payload.get("unknown_count"):
+        lines.append(f"{payload['unknown_count']} players have no birth country yet.")
+    items = [
+        f"{row['country']}: {row['player_count']} players, {row['game_count']} games"
+        for row in countries
+    ]
+    return f"<p>{' '.join(lines)}</p>" + _simple_list(items, lambda item: item)

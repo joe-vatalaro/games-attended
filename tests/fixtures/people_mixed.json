@@ -1,0 +1,44 @@
+{
+  "people": [
+    {
+      "id": 111111,
+      "fullName": "Nathan Lukes",
+      "birthCity": "Langley",
+      "birthStateProvince": "BC",
+      "birthCountry": "Canada"
+    },
+    {
+      "id": 111112,
+      "fullName": "Vladimir Guerrero Jr.",
+      "birthCity": "Montreal",
+      "birthStateProvince": "QC",
+      "birthCountry": "Canada"
+    },
+    {
+      "id": 111113,
+      "fullName": "Pinch Hitter",
+      "birthCity": "Houston",
+      "birthStateProvince": "TX",
+      "birthCountry": "USA"
+    },
+    {
+      "id": 222222,
+      "fullName": "Test Starter",
+      "birthCity": "Oshu",
+      "birthCountry": "Japan"
+    },
+    {
+      "id": 333333,
+      "fullName": "Opp Starter",
+      "birthCity": "Santo Domingo",
+      "birthCountry": "Dominican Republic"
+    },
+    {
+      "id": 444444,
+      "fullName": "Aaron Judge",
+      "birthCity": "Linden",
+      "birthStateProvince": "CA",
+      "birthCountry": "USA"
+    }
+  ]
+}

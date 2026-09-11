@@ -34,6 +34,7 @@ from tracker.reports import (
     format_slash,
     game_boxscore,
     list_player_summaries,
+    parse_depth_per_slot,
     parse_min_count,
     parse_report_type_groups,
     player_page,
@@ -342,10 +343,11 @@ def create_app(
     @app.route("/report")
     def report():
         selected = _selected_type_groups()
+        depth_per = parse_depth_per_slot(request.args.get("depth_per"))
         conn = get_conn()
-        payload = build_report(conn, type_groups=selected)
+        payload = build_report(conn, type_groups=selected, depth_per_slot=depth_per)
         conn.close()
-        return render_template("report.html", report=payload)
+        return render_template("report.html", report=payload, depth_per=depth_per)
 
     return app
 

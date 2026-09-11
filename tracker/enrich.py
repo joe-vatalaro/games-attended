@@ -366,6 +366,31 @@ def refresh_honors(
     return fetched
 
 
+def refresh_player_profiles(
+    conn,
+    *,
+    client: MlbClient | None = None,
+    force: bool = False,
+) -> dict[str, int]:
+    client = client or MlbClient()
+    seen_ids = db.list_seen_player_ids(conn)
+    if force:
+        needed = seen_ids
+    else:
+        known = db.list_profiled_player_ids(conn)
+        needed = [player_id for player_id in seen_ids if player_id not in known]
+    rows = client.fetch_people(needed, force=force)
+    for row in rows:
+        if not row.get("player_name"):
+            row["player_name"] = db.get_player_name(conn, row["player_id"])
+    db.upsert_player_profiles(conn, rows)
+    return {
+        "seen": len(seen_ids),
+        "fetched": len(rows),
+        "stored": conn.execute("SELECT COUNT(*) FROM player_profiles").fetchone()[0],
+    }
+
+
 def enrich_all(
     conn,
     *,

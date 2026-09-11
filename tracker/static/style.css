@@ -696,7 +696,167 @@ button.extreme-open:focus-visible {
   stroke-width: 1.3;
 }
 
+.depth-chart-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem 0.75rem;
+  margin: 0;
+}
+
+.depth-chart-controls {
+  grid-column: 1 / -1;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid #d5e8e4;
+  margin-bottom: 0.15rem;
+}
+
+.depth-chart-filter label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.depth-chart-filter input[type="number"] {
+  width: 3.5rem;
+  margin: 0;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid #c4b8a8;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+}
+
+.depth-chart-filter button {
+  margin: 0;
+  padding: 0.35rem 0.65rem;
+}
+
+.depth-chart {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-areas:
+    ".     .     cf     .     ."
+    "lf    .     .      .     rf"
+    ".     ss    .      second ."
+    "third .     .      .     first"
+    ".     .     c      .     ."
+    ".     .     .      .     dh"
+    "sp    .     .      .     rp";
+  gap: 0.65rem 0.75rem;
+  width: 100%;
+  max-width: none;
+  margin: 0.85rem 0 0.25rem;
+  padding: 1.15rem 1rem 1rem;
+  background: linear-gradient(#fff, #eef6f4);
+  border: 1px solid #c5dce0;
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.depth-slot {
+  position: relative;
+  z-index: 1;
+  width: max-content;
+  min-width: 100%;
+  max-width: calc(200% + 0.75rem);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem 0.55rem;
+}
+
+.depth-cf { grid-area: cf; justify-self: center; max-width: calc(300% + 1.5rem); }
+.depth-lf { grid-area: lf; justify-self: start; }
+.depth-rf { grid-area: rf; justify-self: end; }
+.depth-ss { grid-area: ss; justify-self: end; }
+.depth-2b { grid-area: second; justify-self: start; }
+.depth-3b { grid-area: third; justify-self: start; }
+.depth-1b { grid-area: first; justify-self: end; }
+.depth-c { grid-area: c; justify-self: center; max-width: calc(300% + 1.5rem); }
+.depth-dh { grid-area: dh; justify-self: end; }
+.depth-sp { grid-area: sp; justify-self: start; }
+.depth-rp { grid-area: rp; justify-self: end; }
+
+.depth-slot h4 {
+  margin: 0 0 0.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.depth-slot ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.depth-slot li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+}
+
+.depth-slot li + li {
+  margin-top: 0.18rem;
+}
+
+.depth-slot li a {
+  white-space: nowrap;
+}
+
+.depth-count {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.depth-slot > .muted {
+  margin: 0;
+}
+
+.depth-chart-empty {
+  grid-column: 1 / -1;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.country-groups {
+  margin-top: 0.85rem;
+}
+
+.country-groups details {
+  border-top: 1px solid var(--line);
+  padding: 0.45rem 0;
+}
+
+.country-groups details:first-child {
+  border-top: 0;
+}
+
+.country-groups summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.country-groups ul {
+  margin: 0.4rem 0 0.15rem 1.1rem;
+}
+
 @media (max-width: 640px) {
   .row-2, .row-3, .lineups { grid-template-columns: 1fr; }
   header.site { flex-direction: column; align-items: flex-start; }
+}
+
+@media (max-width: 520px) {
+  .depth-chart {
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+  }
 }

@@ -71,19 +71,29 @@
     show(buttons[next].getAttribute("data-tab"), true);
   });
 
+  function preserveReportTab(form) {
+    let input = form.querySelector("input[name='tab']");
+    if (!input) {
+      input = document.createElement("input");
+      input.type = "hidden";
+      input.name = "tab";
+      form.appendChild(input);
+    }
+    input.value = selectedButtonTab() || tabFromLocation();
+  }
+
   const filter = document.querySelector(".game-type-filter");
   if (filter) {
     filter.addEventListener("submit", function () {
-      let input = filter.querySelector("input[name='tab']");
-      if (!input) {
-        input = document.createElement("input");
-        input.type = "hidden";
-        input.name = "tab";
-        filter.appendChild(input);
-      }
-      input.value = selectedButtonTab() || tabFromLocation();
+      preserveReportTab(filter);
     });
   }
+
+  document.querySelectorAll(".depth-chart-filter").forEach(function (form) {
+    form.addEventListener("submit", function () {
+      preserveReportTab(form);
+    });
+  });
 
   const TABLE_PREVIEW_ROWS = 10;
 

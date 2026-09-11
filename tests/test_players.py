@@ -4,7 +4,16 @@ from tracker import db
 from tracker.app import create_app
 from tracker.enrich import apply_feed_tables, reparse_cache
 from tracker.mlb import parse_game_details, parse_game_events, parse_player_game_stats
-from tracker.reports import build_report, game_boxscore, list_player_summaries, parse_min_count, parse_min_pa, player_page
+from tracker.reports import (
+    build_report,
+    game_boxscore,
+    list_depth_chart,
+    list_player_summaries,
+    parse_depth_per_slot,
+    parse_min_count,
+    parse_min_pa,
+    player_page,
+)
 from tests.conftest import load_fixture
 
 
@@ -93,6 +102,12 @@ def test_player_summaries_and_report_highlights(db_conn):
     assert report["players"]["batting_nights"] == []
     assert report["players"]["pitching_gems"] == []
     assert report["players"]["multiple_uniforms"] == []
+    depth = {slot["key"]: slot["players"] for slot in report["players"]["depth_chart"]}
+    assert [row["player_name"] for row in depth["RF"]] == ["Nathan Lukes"]
+    assert [row["player_name"] for row in depth["CF"]] == ["Aaron Judge"]
+    assert {row["player_name"] for row in depth["SP"]} == {"Test Starter", "Opp Starter"}
+    assert depth["RP"] == []
+    assert report["players"]["depth_chart_count"] >= 4
     assert report["extremes"]["highest_scoring"]["home_score"] == 5
     assert report["extremes"]["hottest"]["temp_f"] == 82
     assert report["extremes"]["shutouts"] == 0
@@ -101,6 +116,143 @@ def test_player_summaries_and_report_highlights(db_conn):
     assert page["totals"]["slash"].startswith(".")
     assert page["totals"]["putouts"] == 2
     assert page["totals"]["fielding_games"] == 1
+
+
+def test_depth_chart_ranks_players_by_position_played(db_conn):
+    db.upsert_game_details(
+        db_conn,
+        {
+            "mlb_game_pk": 900010,
+            "official_date": "2024-05-01",
+            "season": 2024,
+            "game_type": "R",
+            "venue_id": 3313,
+            "venue_name": "Yankee Stadium",
+            "home_team_id": 147,
+            "away_team_id": 141,
+            "home_score": 4,
+            "away_score": 2,
+        },
+    )
+    db.upsert_game_details(
+        db_conn,
+        {
+            "mlb_game_pk": 900011,
+            "official_date": "2024-05-02",
+            "season": 2024,
+            "game_type": "R",
+            "venue_id": 3313,
+            "venue_name": "Yankee Stadium",
+            "home_team_id": 147,
+            "away_team_id": 141,
+            "home_score": 3,
+            "away_score": 1,
+        },
+    )
+    for game_pk, date in ((900010, "2024-05-01"), (900011, "2024-05-02")):
+        db.insert_attended_game(
+            db_conn,
+            {
+                "date": date,
+                "home_team": "New York Yankees",
+                "away_team": "Toronto Blue Jays",
+                "home_team_id": 147,
+                "away_team_id": 141,
+                "mlb_game_pk": game_pk,
+            },
+        )
+    db.replace_player_game_stats(
+        db_conn,
+        900010,
+        [
+            {
+                "player_id": 444444,
+                "player_name": "Aaron Judge",
+                "side": "home",
+                "fielding_position": "CF",
+                "fielding_games_started": 1,
+                "started_game": 1,
+            },
+            {
+                "player_id": 111111,
+                "player_name": "Nathan Lukes",
+                "side": "away",
+                "fielding_position": "RF,CF",
+                "fielding_games_started": 1,
+                "started_game": 1,
+            },
+            {
+                "player_id": 555555,
+                "player_name": "Pinch Runner",
+                "side": "away",
+                "fielding_position": "PR",
+                "started_game": 0,
+            },
+            {
+                "player_id": 666666,
+                "player_name": "Giancarlo Stanton",
+                "side": "home",
+                "fielding_position": "DH",
+                "started_game": 1,
+            },
+            {
+                "player_id": 222222,
+                "player_name": "Test Starter",
+                "side": "home",
+                "started_pitching": 1,
+                "outs": 18,
+            },
+        ],
+    )
+    db.replace_player_game_stats(
+        db_conn,
+        900011,
+        [
+            {
+                "player_id": 444444,
+                "player_name": "Aaron Judge",
+                "side": "home",
+                "fielding_position": "CF",
+                "fielding_games_started": 1,
+                "started_game": 1,
+            },
+            {
+                "player_id": 777777,
+                "player_name": "Cody Bellinger",
+                "side": "home",
+                "fielding_position": "CF",
+                "fielding_games_started": 1,
+                "started_game": 1,
+            },
+        ],
+    )
+    depth = {slot["key"]: slot["players"] for slot in list_depth_chart(db_conn)}
+    assert [row["player_name"] for row in depth["CF"]] == ["Aaron Judge", "Cody Bellinger", "Nathan Lukes"]
+    assert depth["CF"][0]["games"] == 2
+    assert depth["CF"][0]["starts"] == 2
+    assert [row["player_name"] for row in depth["RF"]] == ["Nathan Lukes"]
+    assert [row["player_name"] for row in depth["DH"]] == ["Giancarlo Stanton"]
+    assert [row["player_name"] for row in depth["SP"]] == ["Test Starter"]
+    assert depth["RP"] == []
+    assert depth["LF"] == []
+    assert all(row["player_name"] != "Pinch Runner" for slot in depth.values() for row in slot)
+
+
+def test_depth_per_slot_is_configurable(db_conn):
+    test_depth_chart_ranks_players_by_position_played(db_conn)
+    cf_default = next(
+        slot for slot in build_report(db_conn)["players"]["depth_chart"] if slot["key"] == "CF"
+    )
+    assert len(cf_default["players"]) == 3
+    cf_one = next(
+        slot for slot in build_report(db_conn, depth_per_slot=1)["players"]["depth_chart"] if slot["key"] == "CF"
+    )
+    assert len(cf_one["players"]) == 1
+    assert build_report(db_conn, depth_per_slot=5)["players"]["depth_chart_per_slot"] == 5
+    assert parse_depth_per_slot(None) == 3
+    assert parse_depth_per_slot("5") == 5
+    assert parse_depth_per_slot("99") == 10
+    assert parse_depth_per_slot("-1") == 1
 
 
 def test_game_page_shows_lineup_and_home_run(db_conn, tmp_path):
@@ -155,6 +307,12 @@ def test_players_and_player_pages(db_conn, tmp_path):
         index = flask_client.get("/players").get_data(as_text=True)
         detail = flask_client.get("/players/111111").get_data(as_text=True)
         report = flask_client.get("/report").get_data(as_text=True)
+        report_depth = flask_client.get(
+            "/report?filter=1&tab=players&type=regular&type=playoffs&depth_per=5"
+        ).get_data(as_text=True)
+        report_one = flask_client.get(
+            "/report?filter=1&tab=players&type=regular&type=playoffs&depth_per=1"
+        ).get_data(as_text=True)
     assert "Nathan Lukes" in index
     assert "Aaron Judge" in index
     assert 'data-tab="batting"' in index
@@ -170,6 +328,15 @@ def test_players_and_player_pages(db_conn, tmp_path):
     assert "baseball-reference.com" in detail
     assert "savant-player/111111" in detail
     assert "Most seen players" in report
+    assert "Depth chart" in report
+    assert "depth-chart" in report
+    assert "Depth per position" in report
+    assert "depth-chart-filter" in report
+    assert "depth-chart-controls" in report
+    assert 'name="depth_per"' in report
+    assert report.index("depth-chart-filter") < report.index("depth-slot")
+    assert 'value="5"' in report_depth
+    assert report_depth.count('class="depth-slot"') >= report_one.count('class="depth-slot"')
     assert "Home runs seen" in report
     assert "412" in report
     assert "108.0" in report

@@ -7,7 +7,7 @@ from typing import Any
 
 from tracker.paths import DB_PATH, ensure_data_dirs
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS attended_games (
@@ -149,6 +149,15 @@ CREATE TABLE IF NOT EXISTS player_honors (
     player_name TEXT,
     PRIMARY KEY (player_id, honor_type, award_id, season)
 );
+
+CREATE TABLE IF NOT EXISTS player_profiles (
+    player_id INTEGER PRIMARY KEY,
+    player_name TEXT,
+    birth_country TEXT,
+    birth_city TEXT,
+    birth_state_province TEXT,
+    fetched_at TEXT
+);
 """
 
 
@@ -252,6 +261,20 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             _add_column_if_missing(conn, "player_game_stats", column, "INTEGER")
         _add_column_if_missing(conn, "player_game_stats", "fielding_position", "TEXT")
         conn.execute("PRAGMA user_version = 6")
+    if current < 7:
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS player_profiles (
+                player_id INTEGER PRIMARY KEY,
+                player_name TEXT,
+                birth_country TEXT,
+                birth_city TEXT,
+                birth_state_province TEXT,
+                fetched_at TEXT
+            );
+            """
+        )
+        conn.execute("PRAGMA user_version = 7")
     conn.commit()
 
 
@@ -663,6 +686,66 @@ def list_all_player_honors(conn: sqlite3.Connection) -> list[dict[str, Any]]:
 
 def honors_loaded(conn: sqlite3.Connection) -> bool:
     row = conn.execute("SELECT 1 FROM player_honors LIMIT 1").fetchone()
+    return row is not None
+
+
+def list_seen_player_ids(conn: sqlite3.Connection) -> list[int]:
+    rows = conn.execute(
+        "SELECT DISTINCT player_id FROM player_game_stats ORDER BY player_id"
+    ).fetchall()
+    return [row["player_id"] for row in rows]
+
+
+def list_profiled_player_ids(conn: sqlite3.Connection) -> set[int]:
+    rows = conn.execute("SELECT player_id FROM player_profiles").fetchall()
+    return {row["player_id"] for row in rows}
+
+
+def upsert_player_profiles(conn: sqlite3.Connection, rows: list[dict[str, Any]]) -> None:
+    now = utc_now()
+    columns = [
+        "player_id",
+        "player_name",
+        "birth_country",
+        "birth_city",
+        "birth_state_province",
+        "fetched_at",
+    ]
+    for row in rows:
+        payload = {column: row.get(column) for column in columns}
+        payload["fetched_at"] = payload["fetched_at"] or now
+        conn.execute(
+            """
+            INSERT INTO player_profiles (
+                player_id, player_name, birth_country, birth_city,
+                birth_state_province, fetched_at
+            )
+            VALUES (
+                :player_id, :player_name, :birth_country, :birth_city,
+                :birth_state_province, :fetched_at
+            )
+            ON CONFLICT(player_id) DO UPDATE SET
+                player_name = excluded.player_name,
+                birth_country = excluded.birth_country,
+                birth_city = excluded.birth_city,
+                birth_state_province = excluded.birth_state_province,
+                fetched_at = excluded.fetched_at
+            """,
+            payload,
+        )
+    conn.commit()
+
+
+def get_player_profile(conn: sqlite3.Connection, player_id: int) -> dict[str, Any] | None:
+    row = conn.execute(
+        "SELECT * FROM player_profiles WHERE player_id = ?",
+        (player_id,),
+    ).fetchone()
+    return row_to_dict(row)
+
+
+def profiles_loaded(conn: sqlite3.Connection) -> bool:
+    row = conn.execute("SELECT 1 FROM player_profiles LIMIT 1").fetchone()
     return row is not None
 
 

@@ -61,6 +61,9 @@ HONOR_SHORT_LABELS = {
     "hank_aaron": "Aaron",
     "reliever": "Reliever",
 }
+PEOPLE_BATCH_SIZE = 50
+USA_COUNTRIES = frozenset({"usa", "united states", "united states of america"})
+UNKNOWN_COUNTRY = "Unknown"
 
 
 class MlbError(Exception):
@@ -180,6 +183,38 @@ class MlbClient:
         cached.parent.mkdir(parents=True, exist_ok=True)
         cached.write_text(json.dumps(payload))
         return payload
+
+    def people_cache_path(self, player_id: int) -> Path:
+        return self.cache_dir / "people" / f"{player_id}.json"
+
+    def fetch_people(self, person_ids: list[int], force: bool = False) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        missing: list[int] = []
+        seen: set[int] = set()
+        for raw_id in person_ids:
+            player_id = _as_int(raw_id)
+            if player_id is None or player_id in seen:
+                continue
+            seen.add(player_id)
+            cached = self.people_cache_path(player_id)
+            if cached.exists() and not force:
+                rows.append(json.loads(cached.read_text()))
+            else:
+                missing.append(player_id)
+        if missing:
+            people_dir = self.cache_dir / "people"
+            people_dir.mkdir(parents=True, exist_ok=True)
+            for batch in _chunks(missing, PEOPLE_BATCH_SIZE):
+                payload = self.get_json(
+                    f"{MLB_BASE}/api/v1/people",
+                    {"personIds": ",".join(str(player_id) for player_id in batch)},
+                )
+                parsed = {row["player_id"]: row for row in parse_people(payload)}
+                for player_id in batch:
+                    row = parsed.get(player_id) or empty_player_profile(player_id)
+                    self.people_cache_path(player_id).write_text(json.dumps(row))
+                    rows.append(row)
+        return rows
 
 
 def playoff_label(
@@ -527,14 +562,15 @@ def _first_int(payload: dict[str, Any], *keys: str) -> int | None:
 
 
 def _fielding_position(player: dict[str, Any]) -> str | None:
-    position = ((player.get("position") or {}).get("abbreviation") or "").strip()
-    if position:
-        return position
-    extras = player.get("allPositions") or []
-    if extras and isinstance(extras[0], dict):
-        extra = (extras[0].get("abbreviation") or "").strip()
-        return extra or None
-    return None
+    seen: list[str] = []
+    sources = [player.get("position"), *(player.get("allPositions") or [])]
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        abbreviation = (source.get("abbreviation") or "").strip()
+        if abbreviation and abbreviation not in seen:
+            seen.append(abbreviation)
+    return ",".join(seen) if seen else None
 
 
 def _pitching_decision(pitching: dict[str, Any]) -> str | None:
@@ -603,6 +639,54 @@ def _is_walkoff(
         return False
     last = scoring[-1].get("about") or {}
     return last.get("halfInning") == "bottom" and int(last.get("inning") or 0) >= 9
+
+
+def empty_player_profile(player_id: int) -> dict[str, Any]:
+    return {
+        "player_id": player_id,
+        "player_name": None,
+        "birth_country": None,
+        "birth_city": None,
+        "birth_state_province": None,
+    }
+
+
+def parse_people(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for person in payload.get("people") or []:
+        player_id = _maybe_int(person.get("id"))
+        if player_id is None:
+            continue
+        rows.append(
+            {
+                "player_id": player_id,
+                "player_name": person.get("fullName"),
+                "birth_country": _clean_text(person.get("birthCountry")),
+                "birth_city": _clean_text(person.get("birthCity")),
+                "birth_state_province": _clean_text(person.get("birthStateProvince")),
+            }
+        )
+    return rows
+
+
+def is_usa_country(country: str | None) -> bool:
+    return (country or "").strip().lower() in USA_COUNTRIES
+
+
+def country_label(country: str | None) -> str:
+    cleaned = (country or "").strip()
+    return cleaned or UNKNOWN_COUNTRY
+
+
+def _clean_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    return cleaned or None
+
+
+def _chunks(values: list[int], size: int) -> list[list[int]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
 
 
 def parse_award_recipients(payload: dict[str, Any]) -> list[dict[str, Any]]:

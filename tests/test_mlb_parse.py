@@ -195,6 +195,17 @@ def test_parse_player_stats_and_home_run_event():
     assert "412" in (homer["extra_json"] or "")
 
 
+def test_parse_player_stats_keeps_every_position_played():
+    feed = load_fixture("feed_players_hr.json")
+    player = feed["liveData"]["boxscore"]["teams"]["away"]["players"]["ID111111"]
+    player["allPositions"] = [
+        {"abbreviation": "RF"},
+        {"abbreviation": "CF"},
+    ]
+    players = {row["player_id"]: row for row in parse_player_game_stats(feed)}
+    assert players[111111]["fielding_position"] == "RF,CF"
+
+
 def test_player_parsers_tolerate_pitcher_only_feed():
     feed = load_fixture("feed_746946.json")
     players = parse_player_game_stats(feed)

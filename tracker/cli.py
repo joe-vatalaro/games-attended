@@ -5,11 +5,19 @@ import sys
 from pathlib import Path
 
 from tracker import db
-from tracker.enrich import AlreadyLoggedError, accept_candidate, enrich_all, reparse_cache, resolve_add, refresh_honors
+from tracker.enrich import (
+    AlreadyLoggedError,
+    accept_candidate,
+    enrich_all,
+    refresh_honors,
+    refresh_player_profiles,
+    reparse_cache,
+    resolve_add,
+)
 from tracker.html import render_report_html
 from tracker.mlb import MlbClient
 from tracker.paths import DB_PATH
-from tracker.reports import build_report, format_record, format_score
+from tracker.reports import build_report, format_record, format_score, parse_depth_per_slot
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,8 +48,17 @@ def main(argv: list[str] | None = None) -> int:
     honors = sub.add_parser("honors", help="Fetch Hall of Fame and major award winners from MLB.")
     honors.add_argument("--force", action="store_true")
 
+    profiles = sub.add_parser("profiles", help="Fetch birth countries for players you have seen.")
+    profiles.add_argument("--force", action="store_true")
+
     report = sub.add_parser("report", help="Print reports.")
     report.add_argument("--html", nargs="?", const="report.html")
+    report.add_argument(
+        "--depth-per",
+        type=int,
+        default=None,
+        help="Players shown per position on the depth chart (1-10, default 3).",
+    )
 
     serve = sub.add_parser("serve", help="Run the local web UI.")
     serve.add_argument("--host", default="127.0.0.1")
@@ -69,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_reparse(conn)
         if args.command == "honors":
             return _cmd_honors(conn, args)
+        if args.command == "profiles":
+            return _cmd_profiles(conn, args)
         if args.command == "report":
             return _cmd_report(conn, args)
     finally:
@@ -176,8 +195,17 @@ def _cmd_honors(conn, args) -> int:
     return 0
 
 
+def _cmd_profiles(conn, args) -> int:
+    fetched = refresh_player_profiles(conn, client=MlbClient(), force=args.force)
+    print("Loaded player birth countries from MLB:")
+    print(f"  seen players: {fetched['seen']}")
+    print(f"  fetched: {fetched['fetched']}")
+    print(f"  stored: {fetched['stored']}")
+    return 0
+
+
 def _cmd_report(conn, args) -> int:
-    report = build_report(conn)
+    report = build_report(conn, depth_per_slot=parse_depth_per_slot(args.depth_per))
     if args.html:
         path = Path(args.html)
         path.write_text(render_report_html(report))
@@ -241,6 +269,16 @@ def _cmd_report(conn, args) -> int:
         print("\nMost seen players:")
         for row in players["most_seen"][:8]:
             print(f"  {row['player_name']}: {row['games_seen']} games")
+    depth_chart = players.get("depth_chart") or []
+    if any(slot.get("players") for slot in depth_chart):
+        print("\nDepth chart:")
+        for slot in depth_chart:
+            if not slot.get("players"):
+                continue
+            names = ", ".join(
+                f"{row['player_name']} ({row['games']})" for row in slot["players"][:3]
+            )
+            print(f"  {slot['label']}: {names}")
     if players["starters"]:
         print("\nStarting pitchers seen:")
         for row in players["starters"][:8]:
@@ -266,4 +304,12 @@ def _cmd_report(conn, args) -> int:
         print(f"\nMultiple uniforms: {len(uniforms)} players")
         for row in uniforms[:5]:
             print(f"  {row['player_name']}: {row['team_labels']}")
+    nationalities = players.get("nationalities") or {}
+    if nationalities.get("loaded"):
+        print(
+            f"\nNationalities represented: {nationalities['country_count']} countries "
+            f"({nationalities['international_count']} born outside the USA)"
+        )
+        for row in nationalities.get("countries") or []:
+            print(f"  {row['country']}: {row['player_count']} players")
     return 0

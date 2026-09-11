@@ -29,5 +29,8 @@
       <input type="number" name="min_bf" min="0" step="1" inputmode="numeric" value="{{ min_bf if min_bf else '' }}" placeholder="0">
     </label>
   {% endif %}
+  {% if depth_per is defined %}
+    <input type="hidden" name="depth_per" value="{{ depth_per }}">
+  {% endif %}
   <button type="submit">Apply</button>
 </form>

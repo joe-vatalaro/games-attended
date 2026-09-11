@@ -12,6 +12,9 @@ from tracker.mlb import (
     OTHER_GAME_TYPES,
     POSTSEASON_TYPES,
     SPRING_TYPES,
+    UNKNOWN_COUNTRY,
+    country_label,
+    is_usa_country,
 )
 from tracker.paths import PARKS_PATH
 from tracker.teams import all_teams, team_by_id
@@ -24,6 +27,24 @@ REPORT_TYPE_GROUPS = {
 }
 DEFAULT_REPORT_TYPE_GROUPS = ("regular", "playoffs")
 GROUPED_GAME_TYPES = frozenset().union(*REPORT_TYPE_GROUPS.values())
+DEPTH_CHART_POSITIONS = (
+    ("CF", "CF"),
+    ("LF", "LF"),
+    ("RF", "RF"),
+    ("SS", "SS"),
+    ("2B", "2B"),
+    ("3B", "3B"),
+    ("1B", "1B"),
+    ("C", "C"),
+    ("DH", "DH"),
+    ("SP", "SP"),
+    ("RP", "RP"),
+)
+DEPTH_CHART_KEYS = {key for key, _label in DEPTH_CHART_POSITIONS}
+DEPTH_CHART_ALIASES: dict[str, str] = {}
+DEPTH_CHART_SKIP = {"PH", "PR", "OF", "TWP"}
+DEPTH_CHART_PER_SLOT = 3
+DEPTH_CHART_MAX_PER_SLOT = 10
 
 
 def load_parks(path: Path | None = None) -> list[dict[str, Any]]:
@@ -50,6 +71,15 @@ def parse_min_pa(value: str | int | None) -> int:
     return parse_min_count(value)
 
 
+def parse_depth_per_slot(value: str | int | None) -> int:
+    if value is None or value == "":
+        return DEPTH_CHART_PER_SLOT
+    try:
+        return max(1, min(DEPTH_CHART_MAX_PER_SLOT, int(value)))
+    except (TypeError, ValueError):
+        return DEPTH_CHART_PER_SLOT
+
+
 def allowed_game_types(type_groups: list[str] | tuple[str, ...] | None) -> set[str]:
     groups = type_groups if type_groups is not None else DEFAULT_REPORT_TYPE_GROUPS
     allowed: set[str] = set()
@@ -69,6 +99,8 @@ def build_report(
     conn,
     parks_path: Path | None = None,
     type_groups: list[str] | tuple[str, ...] | None = None,
+    *,
+    depth_per_slot: int | None = None,
 ) -> dict[str, Any]:
     selected = list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS)
     allowed = allowed_game_types(selected)
@@ -114,7 +146,11 @@ def build_report(
         "by_year": _by_year(confirmed),
         "notable": _notable(confirmed),
         "unmatched": unmatched,
-        "players": player_highlights(conn, selected),
+        "players": player_highlights(
+            conn,
+            selected,
+            depth_per_slot=depth_per_slot,
+        ),
         "honors": seen_honors(conn, selected),
     }
 
@@ -1018,6 +1054,7 @@ def player_page(
         "totals": totals,
         "games": games,
         "honors": honors_for_player(conn, player_id),
+        "birthplace": birthplace_label(db.get_player_profile(conn, player_id)),
         "type_groups": list(type_groups) if type_groups is not None else list(DEFAULT_REPORT_TYPE_GROUPS),
     }
 
@@ -1172,6 +1209,90 @@ def _pitching_gem_flags(row: dict[str, Any]) -> list[str]:
     return flags
 
 
+def list_depth_chart(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+    *,
+    per_slot: int = DEPTH_CHART_PER_SLOT,
+) -> list[dict[str, Any]]:
+    where, params = _type_filter_sql(type_groups)
+    rows = conn.execute(
+        f"""
+        SELECT p.player_id, p.player_name, p.fielding_position,
+               p.started_pitching, p.outs, p.fielding_games_started
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        WHERE {where}
+        """,
+        params,
+    ).fetchall()
+    counts: dict[str, dict[int, dict[str, Any]]] = defaultdict(dict)
+    for row in rows:
+        item = dict(row)
+        for position in _positions_played(item):
+            slot = counts[position]
+            player_id = item["player_id"]
+            current = slot.get(player_id)
+            if current is None:
+                current = {
+                    "player_id": player_id,
+                    "player_name": item["player_name"],
+                    "games": 0,
+                    "starts": 0,
+                }
+                slot[player_id] = current
+            current["games"] += 1
+            if _started_at_position(item, position):
+                current["starts"] += 1
+    chart = []
+    for key, label in DEPTH_CHART_POSITIONS:
+        players = sorted(
+            counts.get(key, {}).values(),
+            key=lambda row: (-row["games"], -row["starts"], row["player_name"]),
+        )
+        chart.append(
+            {
+                "key": key,
+                "label": label,
+                "players": players[:per_slot],
+            }
+        )
+    return chart
+
+
+def _positions_played(row: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for part in str(row.get("fielding_position") or "").split(","):
+        position = DEPTH_CHART_ALIASES.get(part.strip().upper(), part.strip().upper())
+        if position == "P":
+            position = _pitching_role(row)
+        if not position or position in DEPTH_CHART_SKIP or position not in DEPTH_CHART_KEYS:
+            continue
+        if position not in found:
+            found.append(position)
+    role = _pitching_role(row)
+    if role and role not in found:
+        found.append(role)
+    return found
+
+
+def _pitching_role(row: dict[str, Any]) -> str | None:
+    if row.get("started_pitching"):
+        return "SP"
+    if (row.get("outs") or 0) > 0:
+        return "RP"
+    return None
+
+
+def _started_at_position(row: dict[str, Any], position: str) -> bool:
+    if position == "SP":
+        return bool(row.get("started_pitching"))
+    if position == "RP":
+        return bool((row.get("outs") or 0) > 0 and not row.get("started_pitching"))
+    return bool(row.get("fielding_games_started") or row.get("started_game"))
+
+
 def list_multiple_uniforms(
     conn,
     type_groups: list[str] | tuple[str, ...] | None = None,
@@ -1218,9 +1339,104 @@ def list_multiple_uniforms(
     return uniforms
 
 
+def birthplace_label(profile: dict[str, Any] | None) -> str | None:
+    if not profile:
+        return None
+    city = (profile.get("birth_city") or "").strip()
+    state = (profile.get("birth_state_province") or "").strip()
+    country = (profile.get("birth_country") or "").strip()
+    locality = f"{city}, {state}" if city and state else city
+    parts = [part for part in (locality, country) if part]
+    return ", ".join(parts) if parts else None
+
+
+def list_nationalities_seen(
+    conn,
+    type_groups: list[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    from tracker import db
+
+    where, params = _type_filter_sql(type_groups)
+    loaded = db.profiles_loaded(conn)
+    rows = conn.execute(
+        f"""
+        SELECT p.player_id,
+               MAX(p.player_name) AS player_name,
+               pp.birth_country AS birth_country,
+               COUNT(DISTINCT p.mlb_game_pk) AS games_seen
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        LEFT JOIN player_profiles pp ON pp.player_id = p.player_id
+        WHERE {where}
+        GROUP BY p.player_id, pp.birth_country
+        ORDER BY player_name
+        """,
+        params,
+    ).fetchall()
+    game_rows = conn.execute(
+        f"""
+        SELECT pp.birth_country AS birth_country,
+               COUNT(DISTINCT p.mlb_game_pk) AS game_count
+        FROM player_game_stats p
+        JOIN attended_games a ON a.mlb_game_pk = p.mlb_game_pk
+        JOIN game_details d ON d.mlb_game_pk = p.mlb_game_pk
+        LEFT JOIN player_profiles pp ON pp.player_id = p.player_id
+        WHERE {where}
+        GROUP BY pp.birth_country
+        """,
+        params,
+    ).fetchall()
+    games_by_country = {
+        country_label(row["birth_country"]): row["game_count"] for row in game_rows
+    }
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        item = dict(row)
+        item["country"] = country_label(item.get("birth_country"))
+        grouped[item["country"]].append(item)
+    countries = []
+    for country, players in grouped.items():
+        countries.append(
+            {
+                "country": country,
+                "player_count": len(players),
+                "game_count": games_by_country.get(country, 0),
+                "is_usa": is_usa_country(country),
+                "is_unknown": country == UNKNOWN_COUNTRY,
+                "players": sorted(
+                    players,
+                    key=lambda player: (-player["games_seen"], player["player_name"]),
+                ),
+            }
+        )
+    countries.sort(
+        key=lambda item: (
+            item["is_unknown"],
+            -item["player_count"],
+            item["country"],
+        )
+    )
+    known = [item for item in countries if not item["is_unknown"]]
+    usa_count = sum(item["player_count"] for item in known if item["is_usa"])
+    international_count = sum(item["player_count"] for item in known if not item["is_usa"])
+    unknown_count = sum(item["player_count"] for item in countries if item["is_unknown"])
+    return {
+        "loaded": loaded,
+        "country_count": len(known),
+        "player_count": usa_count + international_count,
+        "usa_count": usa_count,
+        "international_count": international_count,
+        "unknown_count": unknown_count,
+        "countries": countries,
+    }
+
+
 def player_highlights(
     conn,
     type_groups: list[str] | tuple[str, ...] | None = None,
+    *,
+    depth_per_slot: int | None = None,
 ) -> dict[str, Any]:
     summaries = list_player_summaries(conn, type_groups)
     starters = sorted(
@@ -1232,6 +1448,8 @@ def player_highlights(
         home_runs,
         key=lambda event: (event.get("distance") is None, -(event.get("distance") or 0)),
     )
+    per_slot = parse_depth_per_slot(depth_per_slot)
+    depth_chart = list_depth_chart(conn, type_groups, per_slot=per_slot)
     return {
         "most_seen": summaries[:10],
         "starters": starters[:15],
@@ -1243,6 +1461,10 @@ def player_highlights(
         "batting_nights": list_batting_nights(conn, type_groups),
         "pitching_gems": list_pitching_gems(conn, type_groups),
         "multiple_uniforms": list_multiple_uniforms(conn, type_groups),
+        "nationalities": list_nationalities_seen(conn, type_groups),
+        "depth_chart": depth_chart,
+        "depth_chart_count": sum(len(slot["players"]) for slot in depth_chart),
+        "depth_chart_per_slot": per_slot,
     }
 
 
